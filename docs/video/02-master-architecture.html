@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Master Architecture</title>
+<style>
+:root{--bg:#0a0c11;--panel:#12151d;--panel2:#171b25;--line:#252b39;--soft:#1c212c;--text:#e8ebf2;--dim:#98a1b5;--faint:#626b80;--accent:#7c8cf5;--violet:#a78bfa;--green:#4ade80;--amber:#fbbf24;--red:#f87171;--cyan:#38bdf8;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:36px 24px 90px}
+.wrap{max-width:1280px;margin:0 auto}
+h1{font-size:30px;letter-spacing:-.02em}
+.sub{color:var(--dim);margin:6px 0 28px}
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:34px 0 12px;font-weight:700}
+.flow{display:flex;flex-direction:column;align-items:center;gap:0;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:26px 20px}
+.node{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:11px 20px;text-align:center;min-width:230px}
+.node .t{font-weight:600;font-size:14px}
+.node .i{font-family:var(--mono);font-size:11px;color:var(--cyan);margin-top:3px}
+.node.orch{border-color:#3d4a86;background:#141a2c;min-width:520px;padding:16px 20px}
+.node.model{border-color:#3d3357;background:#171327}
+.node.data{border-color:#1f4a3a;background:#101d19}
+.node.io{border-color:#4a3a1a;background:#1e1a10}
+.arrow{width:1px;height:20px;background:linear-gradient(180deg,var(--line),var(--accent));position:relative}
+.arrow::after{content:"";position:absolute;bottom:0;left:50%;transform:translateX(-50%);border:4px solid transparent;border-top-color:var(--accent)}
+.arrow span{position:absolute;left:12px;top:2px;font-family:var(--mono);font-size:10px;color:var(--faint);white-space:nowrap}
+.row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.orchgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+.chip{background:#0e1320;border:1px solid #2c3552;border-radius:7px;padding:7px 9px;font-size:12px;text-align:center}
+.chip b{display:block;font-size:11px;color:var(--violet);font-family:var(--mono);font-weight:600}
+.chip span{font-size:10.5px;color:var(--faint);font-family:var(--mono)}
+.panels{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:14px}
+@media(max-width:1050px){.panels{grid-template-columns:repeat(2,1fr)}.node.orch{min-width:auto;width:100%}}
+.side{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.side h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;font-weight:700}
+.side.model h3{color:var(--violet)}.side.orchp h3{color:var(--accent)}
+.side.data h3{color:var(--green)}.side.prod h3{color:var(--amber)}
+.side ul{list-style:none}
+.side li{font-size:12.5px;color:var(--dim);padding:5px 0;border-bottom:1px solid var(--soft);display:flex;justify-content:space-between;gap:8px}
+.side li:last-child{border:0}
+.side li b{color:var(--text);font-weight:500}
+.side li em{font-style:normal;font-family:var(--mono);font-size:10.5px;color:var(--faint);text-align:right}
+.legend{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0 0;font-size:12px;color:var(--faint)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
+table{width:100%;border-collapse:collapse;font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);padding:10px 12px;border-bottom:1px solid var(--line)}
+td{padding:9px 12px;border-bottom:1px solid var(--soft);color:var(--dim)}
+td:first-child{color:var(--text)}
+td code,th code{font-family:var(--mono);font-size:12px;color:var(--cyan)}
+tr:last-child td{border:0}
+.note{border-left:3px solid var(--accent);background:#10141d;padding:12px 16px;border-radius:0 8px 8px 0;margin:16px 0;color:var(--dim);font-size:14px}
+.note strong{color:var(--text)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Master Architecture</h1>
+  <p class="sub">Laura voice intake orchestrator — every box below maps to real code in this repository.</p>
+
+  <div class="legend">
+    <span><i style="background:#4a3a1a"></i>I/O &amp; transport</span>
+    <span><i style="background:#3d3357"></i>Model layer</span>
+    <span><i style="background:#3d4a86"></i>Orchestration (my code)</span>
+    <span><i style="background:#1f4a3a"></i>Data layer</span>
+  </div>
+
+  <h2>Realtime call path</h2>
+  <div class="flow">
+    <div class="node io"><div class="t">Browser microphone</div><div class="i">apps/web · getUserMedia + AEC</div></div>
+    <div class="arrow"><span>WebRTC / Opus</span></div>
+    <div class="node io"><div class="t">LiveKit Cloud</div><div class="i">realtime media transport + room</div></div>
+    <div class="arrow"><span>audio frames</span></div>
+    <div class="node model"><div class="t">VAD / turn detection</div><div class="i">Silero VAD (prewarmed per worker)</div></div>
+    <div class="arrow"><span>speech segment</span></div>
+    <div class="node model"><div class="t">Streaming STT</div><div class="i">Deepgram nova-3 · partial + final</div></div>
+    <div class="arrow"><span>user.transcript.final</span></div>
+
+    <div class="node orch">
+      <div class="t">CallOrchestrator — business control plane</div>
+      <div class="i">apps/agent/src/orchestrator/CallOrchestrator.ts</div>
+      <div class="orchgrid">
+        <div class="chip"><b>CallState</b><span>typed, in-memory</span></div>
+        <div class="chip"><b>ContextService</b><span>what the LLM sees</span></div>
+        <div class="chip"><b>PHASE_TRANSITIONS</b><span>validated edges</span></div>
+        <div class="chip"><b>prepareHandoff()</b><span>agent routing</span></div>
+        <div class="chip"><b>ToolRegistry</b><span>9 typed tools</span></div>
+        <div class="chip"><b>EventService</b><span>PG + Redis + log</span></div>
+      </div>
+    </div>
+
+    <div class="arrow"><span>selects active agent</span></div>
+    <div class="row">
+      <div class="node"><div class="t">Triage</div><div class="i">TRIAGE</div></div>
+      <div class="node"><div class="t">Intake</div><div class="i">INTAKE</div></div>
+      <div class="node"><div class="t">Qualification</div><div class="i">QUALIFICATION</div></div>
+      <div class="node"><div class="t">Scheduling</div><div class="i">SCHEDULING</div></div>
+    </div>
+    <div class="arrow"><span>assembled context</span></div>
+    <div class="node model"><div class="t">LLM — OpenRouter</div><div class="i">via LiveKit OpenAI-compatible adapter</div></div>
+    <div class="arrow"><span>tool call proposal</span></div>
+    <div class="node orch" style="min-width:340px"><div class="t">ToolRegistry.wrap()</div><div class="i">zod validate → execute → tool.completed / tool.failed</div></div>
+    <div class="arrow"><span>typed service calls</span></div>
+    <div class="row">
+      <div class="node data"><div class="t">CaseService</div><div class="i">Caller · Matter</div></div>
+      <div class="node data"><div class="t">AppointmentService</div><div class="i">idempotent booking</div></div>
+      <div class="node data"><div class="t">CallLogService</div><div class="i">Call · TranscriptTurn</div></div>
+    </div>
+    <div class="arrow"></div>
+    <div class="row">
+      <div class="node data"><div class="t">PostgreSQL</div><div class="i">durable source of truth</div></div>
+      <div class="node data"><div class="t">Redis</div><div class="i">event stream + pub/sub</div></div>
+    </div>
+    <div class="arrow"><span>tool result re-enters context</span></div>
+    <div class="node model"><div class="t">Streaming TTS</div><div class="i">Deepgram aura-asteria-en</div></div>
+    <div class="arrow"><span>audio frames</span></div>
+    <div class="node io"><div class="t">LiveKit → browser speaker</div><div class="i">RoomAudioRenderer</div></div>
+  </div>
+
+  <h2>Observability side-channel</h2>
+  <div class="note">
+    Every orchestration step also emits a <code style="font-family:var(--mono);color:var(--cyan)">CallEvent</code> →
+    <strong>Postgres</strong> (durable audit) + <strong>Redis pub/sub</strong> → <strong>apps/api SSE</strong> →
+    <strong>React timeline</strong>. The frontend never polls, and never touches Postgres or Redis directly.
+  </div>
+
+  <div class="panels">
+    <div class="side model">
+      <h3>Model layer</h3>
+      <ul>
+        <li><b>VAD</b><em>Silero</em></li>
+        <li><b>STT</b><em>Deepgram nova-3</em></li>
+        <li><b>LLM</b><em>OpenRouter (env-swappable)</em></li>
+        <li><b>TTS</b><em>Deepgram aura</em></li>
+        <li><b>Extraction</b><em>@openrouter/sdk</em></li>
+        <li><b>Architecture</b><em>cascaded, not S2S</em></li>
+      </ul>
+    </div>
+    <div class="side orchp">
+      <h3>Orchestration layer</h3>
+      <ul>
+        <li><b>Phases</b><em>9 states</em></li>
+        <li><b>Agents</b><em>4</em></li>
+        <li><b>Handoffs</b><em>validated edges</em></li>
+        <li><b>Tools</b><em>9 typed</em></li>
+        <li><b>Context</b><em>ContextService</em></li>
+        <li><b>Interruption</b><em>TurnState enum</em></li>
+      </ul>
+    </div>
+    <div class="side data">
+      <h3>Data layer</h3>
+      <ul>
+        <li><b>Caller</b><em>unique phone</em></li>
+        <li><b>Matter</b><em>13 intake fields</em></li>
+        <li><b>Appointment</b><em>idempotencyKey</em></li>
+        <li><b>Call</b><em>room, status, summary</em></li>
+        <li><b>TranscriptTurn</b><em>speaker + text</em></li>
+        <li><b>CallEvent</b><em>type, phase, durationMs</em></li>
+      </ul>
+    </div>
+    <div class="side prod">
+      <h3>Production layer</h3>
+      <ul>
+        <li><b>Latency</b><em>TTFT + TTS TTFB measured</em></li>
+        <li><b>Idempotency</b><em>appointments</em></li>
+        <li><b>Tool failure</b><em>never throws to LLM</em></li>
+        <li><b>Cancellation</b><em>barge-in cancels TTS</em></li>
+        <li><b>Secrets</b><em>redacted in logs</em></li>
+        <li><b>Evals</b><em style="color:#fbbf24">not built yet</em></li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Concept vs implementation</h2>
+  <table>
+    <tr><th>Concept</th><th>Implementation</th><th>Why this one</th></tr>
+    <tr><td>Voice gateway</td><td><code>LiveKit Cloud</code></td><td>Owns WebRTC/SFU, jitter buffer, track lifecycle — not worth rebuilding</td></tr>
+    <tr><td>Turn detection</td><td><code>Silero VAD</code></td><td>Local ONNX, no network hop in the turn loop</td></tr>
+    <tr><td>Speech recognition</td><td><code>Deepgram nova-3</code></td><td>True streaming with partials; non-streaming would add whole-utterance latency</td></tr>
+    <tr><td>LLM gateway</td><td><code>OpenRouter</code></td><td>Model swappable by env var; no provider lock-in in code</td></tr>
+    <tr><td>Speech synthesis</td><td><code>Deepgram aura</code></td><td>Same vendor/key as STT; streaming first-byte ~300ms</td></tr>
+    <tr><td>Orchestration</td><td><code>CallOrchestrator</code></td><td>Business control flow must be deterministic, not model-decided</td></tr>
+    <tr><td>Context engineering</td><td><code>ContextService</code></td><td>One place decides what the model sees — auditable</td></tr>
+    <tr><td>Tool execution</td><td><code>ToolRegistry</code> + services</td><td>Single validation/logging boundary for every state mutation</td></tr>
+    <tr><td>Durable state</td><td><code>PostgreSQL</code> + Prisma</td><td>Business records must survive process death</td></tr>
+    <tr><td>Ephemeral state / events</td><td><code>Redis</code></td><td>Losing Redis loses the live feed, never the matter</td></tr>
+    <tr><td>Presentation</td><td><code>Next.js</code> + SSE</td><td>Thin layer; renders from the event log only</td></tr>
+  </table>
+</div>
+</body>
+</html>

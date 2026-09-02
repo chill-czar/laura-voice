@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice Under The Hood</title>
+<style>
+:root{--bg:#0a0c11;--panel:#12151d;--panel2:#171b25;--line:#252b39;--soft:#1c212c;--text:#e8ebf2;--dim:#98a1b5;--faint:#626b80;--accent:#7c8cf5;--violet:#a78bfa;--green:#4ade80;--amber:#fbbf24;--red:#f87171;--cyan:#38bdf8;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:36px 24px 90px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:30px;letter-spacing:-.02em}
+.sub{color:var(--dim);margin:6px 0 28px}
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:36px 0 12px;font-weight:700}
+h3{font-size:15px;margin:0 0 6px}
+p{color:var(--dim);margin-bottom:10px;font-size:14px}
+code{font-family:var(--mono);font-size:.88em;color:var(--cyan)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+.pipe{display:flex;align-items:stretch;gap:0;overflow-x:auto;padding:18px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.stage{min-width:150px;flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:11px 12px;text-align:center}
+.stage .n{font-family:var(--mono);font-size:10px;color:var(--faint)}
+.stage .t{font-weight:600;font-size:13px;margin:3px 0}
+.stage .d{font-size:10.5px;color:var(--faint);font-family:var(--mono)}
+.stage.owned{border-color:#3d4a86;background:#141a2c}
+.sep{display:flex;align-items:center;color:var(--accent);padding:0 7px;font-size:15px}
+.note{border-left:3px solid var(--accent);background:#10141d;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;color:var(--dim);font-size:14px}
+.note.warn{border-left-color:var(--amber)}
+.note.bad{border-left-color:var(--red)}
+.note strong{color:var(--text)}
+ul{margin:0 0 8px 17px;color:var(--dim);font-size:13.5px}
+li{margin-bottom:5px}
+.kv{font-family:var(--mono);font-size:12px;color:var(--faint)}
+.say{border:1px dashed #33406b;background:#101524;border-radius:8px;padding:12px 15px;margin:12px 0;color:#b9c5e8;font-size:13.5px}
+.say::before{content:"SAY THIS";display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--accent);margin-bottom:5px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:8px 10px;border-bottom:1px solid var(--soft);color:var(--dim);vertical-align:top}
+td:first-child{color:var(--text)}
+tr:last-child td{border:0}
+.owns{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.owns>div{padding:16px 18px}
+.owns .l{background:#12151d;border-right:1px solid var(--line)}
+.owns .r{background:#0f1219}
+.owns h4{font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:9px}
+.owns .l h4{color:var(--violet)}.owns .r h4{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Voice AI Under The Hood</h1>
+  <p class="sub">What actually happens between a person speaking and the agent answering — and which parts are mine.</p>
+
+  <h2>The full path of one turn</h2>
+  <div class="pipe">
+    <div class="stage"><div class="n">01</div><div class="t">Mic capture</div><div class="d">PCM + AEC</div></div>
+    <div class="sep">→</div>
+    <div class="stage"><div class="n">02</div><div class="t">WebRTC</div><div class="d">Opus, ~20ms frames</div></div>
+    <div class="sep">→</div>
+    <div class="stage"><div class="n">03</div><div class="t">VAD</div><div class="d">speech? yes/no</div></div>
+    <div class="sep">→</div>
+    <div class="stage"><div class="n">04</div><div class="t">Endpointing</div><div class="d">turn over?</div></div>
+    <div class="sep">→</div>
+    <div class="stage"><div class="n">05</div><div class="t">STT</div><div class="d">partial → final</div></div>
+    <div class="sep">→</div>
+    <div class="stage owned"><div class="n">06</div><div class="t">Context assembly</div><div class="d">ContextService</div></div>
+    <div class="sep">→</div>
+    <div class="stage"><div class="n">07</div><div class="t">LLM</div><div class="d">streamed tokens</div></div>
+    <div class="sep">→</div>
+    <div class="stage owned"><div class="n">08</div><div class="t">Tools</div><div class="d">ToolRegistry</div></div>
+    <div class="sep">→</div>
+    <div class="stage"><div class="n">09</div><div class="t">TTS</div><div class="d">sentence-chunked</div></div>
+    <div class="sep">→</div>
+    <div class="stage"><div class="n">10</div><div class="t">Playback</div><div class="d">WebRTC out</div></div>
+  </div>
+  <p class="kv" style="margin-top:8px">Highlighted stages are my orchestration code; the rest is LiveKit + model providers.</p>
+
+  <h2>What each stage actually does</h2>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>VAD — Voice Activity Detection</h3>
+      <p>A small binary classifier over short audio windows: <em>is this frame speech or not?</em> Silero is a
+      compact ONNX model running <strong>locally in the agent process</strong> — no network hop inside the turn loop.</p>
+      <ul>
+        <li>Does <strong>not</strong> know words, meaning, or who is speaking</li>
+        <li>Cheap enough to run continuously on every frame</li>
+        <li>Its output is the trigger for "user started/stopped talking"</li>
+      </ul>
+      <p class="kv">entry.ts → silero.VAD.load(), prewarmed once per worker</p>
+    </div>
+    <div class="card">
+      <h3>Endpointing — the harder problem</h3>
+      <p>VAD says "silence right now". Endpointing decides "the <em>turn</em> is over". A pause mid-sentence is not
+      the end of a turn. Get this wrong in either direction and the call feels broken:</p>
+      <ul>
+        <li>Too eager → you interrupt the caller mid-thought</li>
+        <li>Too patient → dead air, feels laggy</li>
+      </ul>
+      <p>Measured in this project as <code>latency.end_of_utterance</code> (~580ms observed).</p>
+      <div class="note warn" style="margin:8px 0 0;font-size:13px">Honest note: this uses standard VAD-based
+      endpointing. LiveKit also ships a semantic turn-detector model that predicts end-of-turn from transcript
+      content — I did not enable it. That's a real, nameable next step.</div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>STT — streaming speech recognition</h3>
+      <p>Audio frames go up a websocket continuously; the model returns <strong>partial hypotheses</strong> that get
+      revised, then a <strong>final</strong> when it commits.</p>
+      <ul>
+        <li>Partials let the UI feel live and let the system react early</li>
+        <li>Finals are what the orchestrator actually acts on</li>
+        <li>Streaming is the whole point — batch STT would add the entire utterance duration to latency</li>
+      </ul>
+      <p class="kv">Observed: one spoken thought often arrives as 4–6 separate finals</p>
+    </div>
+    <div class="card">
+      <h3>TTS — streaming synthesis</h3>
+      <p>Text is chunked by a sentence tokenizer and streamed to Deepgram over a websocket; audio frames come back
+      and are pushed into the LiveKit track as they arrive.</p>
+      <ul>
+        <li>We never wait for the full response before speaking</li>
+        <li>Time-to-first-byte is what the caller perceives (~300ms observed)</li>
+        <li>Audio already sent to the room cannot be un-played — only future audio can be cancelled</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>What the LLM receives — and what it does not control</h2>
+  <div class="owns">
+    <div class="l">
+      <h4>The LLM decides</h4>
+      <ul>
+        <li>What sentence to say next</li>
+        <li>Which allowed tool is relevant</li>
+        <li>What arguments to pass</li>
+        <li>Whether the caller's meaning is clear</li>
+        <li>Which facts appear in free text</li>
+      </ul>
+    </div>
+    <div class="r">
+      <h4>The orchestrator decides</h4>
+      <ul>
+        <li>Which phase the call is in — <code>isTransitionAllowed()</code></li>
+        <li>Whether a handoff is legal — <code>prepareHandoff()</code></li>
+        <li>Whether the caller qualifies — <code>evaluateQualification()</code></li>
+        <li>Which tools even exist for this agent</li>
+        <li>What context the model is allowed to see</li>
+        <li>What actually gets written to Postgres</li>
+      </ul>
+    </div>
+  </div>
+  <div class="say">The model never receives the transcript and returns a database write. It returns a
+  <em>proposal</em>. Deterministic code decides whether that proposal is allowed, and only typed services touch
+  the database.</div>
+
+  <h2>What is lost when audio becomes text</h2>
+  <p>This is the honest cost of a cascaded architecture, and it's worth naming precisely.</p>
+  <table>
+    <tr><th>Signal</th><th>Survives STT?</th><th>Consequence here</th></tr>
+    <tr><td>Words / semantic content</td><td style="color:#4ade80">Yes</td><td>This is what the whole pipeline is built on</td></tr>
+    <tr><td>Rough timing / pauses</td><td style="color:#fbbf24">Partly</td><td>Available as timestamps, not as meaning</td></tr>
+    <tr><td>Prosody, intonation</td><td style="color:#f87171">No</td><td>"Fine." (angry) and "Fine!" (relieved) become identical text</td></tr>
+    <tr><td>Emotion / distress</td><td style="color:#f87171">No</td><td>Real gap for an injury intake line — a distressed caller reads as neutral</td></tr>
+    <tr><td>Speaker identity / overlap</td><td style="color:#f87171">No</td><td>No diarization configured; two people on speakerphone merge</td></tr>
+    <tr><td>Background acoustics</td><td style="color:#f87171">No</td><td>Can't tell "roadside, just crashed" from "quiet office"</td></tr>
+  </table>
+  <div class="note">I chose to accept this loss. In exchange I get an exact transcript I can log, replay, diff,
+  evaluate and show a compliance reviewer — which for a legal intake product is worth more than prosody.
+  That's a tradeoff I made deliberately, not a limitation I didn't notice.</div>
+
+  <h2>Two different meanings of "architecture"</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Application architecture <span style="color:var(--green);font-size:11px">— what I built</span></h3>
+      <p>Transport, turn-taking, orchestration, state machine, context assembly, tools, persistence, observability.
+      This is the layer a forward-deployed engineer actually owns and changes per customer.</p>
+    </div>
+    <div class="card">
+      <h3>Model architecture <span style="color:var(--amber);font-size:11px">— what I use</span></h3>
+      <p>Encoders, transformer stacks, vocoders, training objectives. I understand the public concepts and can
+      reason about the tradeoffs, but I did not train or modify any of these models — and I won't imply otherwise.</p>
+    </div>
+  </div>
+  <div class="note bad"><strong>Do not blur these two on camera.</strong> Claiming model-internal knowledge you
+  don't have is the fastest way to lose credibility with someone who does have it.</div>
+</div>
+</body>
+</html>

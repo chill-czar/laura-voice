@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voice Intake Orchestrator — Presentation</title>
+<style>
+:root{--bg:#0a0c11;--panel:#12151d;--panel2:#171b25;--line:#252b39;--soft:#1c212c;--text:#e8ebf2;--dim:#98a1b5;--faint:#626b80;--accent:#7c8cf5;--violet:#a78bfa;--green:#4ade80;--amber:#fbbf24;--red:#f87171;--cyan:#38bdf8;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+.slide{position:absolute;inset:0;display:none;flex-direction:column;justify-content:center;padding:60px 80px 90px;overflow-y:auto}
+.slide.on{display:flex}
+.num{position:fixed;bottom:22px;right:28px;font-family:var(--mono);font-size:12px;color:var(--faint);z-index:10}
+.hint{position:fixed;bottom:22px;left:28px;font-family:var(--mono);font-size:11px;color:#39415a;z-index:10}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+h1{font-size:46px;line-height:1.12;letter-spacing:-.025em;margin-bottom:18px}
+h2{font-size:34px;line-height:1.18;letter-spacing:-.02em;margin-bottom:20px}
+.lead{font-size:19px;color:var(--dim);max-width:900px;line-height:1.55}
+.lead b{color:var(--text);font-weight:600}
+ul{list-style:none;max-width:1000px}
+li{font-size:17px;color:var(--dim);padding:9px 0 9px 26px;position:relative}
+li::before{content:"▸";position:absolute;left:0;color:var(--accent)}
+li b{color:var(--text);font-weight:600}
+code{font-family:var(--mono);font-size:.87em;color:var(--cyan)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:26px;max-width:1100px}
+.cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;max-width:1150px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 22px}
+.card h3{font-size:13px;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;color:var(--violet)}
+.card p{font-size:15px;color:var(--dim)}
+.card ul li{font-size:15px;padding:6px 0 6px 22px}
+.big{font-size:60px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.big.g{color:var(--green)}.big.a{color:var(--amber)}.big.v{color:var(--violet)}
+.stat{text-align:center}
+.stat .l{font-family:var(--mono);font-size:12px;color:var(--faint);margin-top:8px}
+pre{background:#0d1017;border:1px solid var(--line);border-radius:10px;padding:18px 20px;font-family:var(--mono);font-size:14px;line-height:1.6;color:#cdd6e6;overflow-x:auto;max-width:1000px}
+.k{color:#c792ea}.s{color:#c3e88d}.c{color:#546a90}.f{color:#82aaff}
+.flowrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;max-width:1100px}
+.n{border:1px solid var(--line);background:var(--panel2);border-radius:9px;padding:11px 16px;font-size:14px;white-space:nowrap}
+.n.hi{border-color:#3d4a86;background:#141a2c;color:#b9c5e8;font-weight:600}
+.n.mdl{border-color:#3d3357;background:#171327}
+.n.dat{border-color:#235437;background:#101d17}
+.ar{color:var(--accent);font-size:16px}
+.quote{border-left:3px solid var(--accent);padding:14px 24px;background:#10141d;border-radius:0 10px 10px 0;font-size:19px;color:#b9c5e8;max-width:960px;line-height:1.5}
+.tag{display:inline-block;font-family:var(--mono);font-size:11px;padding:4px 11px;border-radius:999px;border:1px solid var(--line);color:var(--dim);margin:0 6px 6px 0}
+.tag.ok{border-color:#235437;background:#101d17;color:var(--green)}
+.tag.no{border-color:#4a3a1a;background:#1e1a10;color:var(--amber)}
+table{border-collapse:collapse;font-size:15px;max-width:1050px;width:100%}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);padding:9px 12px;border-bottom:1px solid var(--line)}
+td{padding:10px 12px;border-bottom:1px solid var(--soft);color:var(--dim)}
+td:first-child{color:var(--text)}
+tr:last-child td{border:0}
+.nav{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:10}
+.dot{width:7px;height:7px;border-radius:50%;background:#2a3145;cursor:pointer}
+.dot.on{background:var(--accent);width:20px;border-radius:4px}
+</style>
+</head>
+<body>
+
+<section class="slide on">
+  <div class="kicker">Forward Deployed / AI Engineering</div>
+  <h1>Building the layer<br>underneath the abstraction</h1>
+  <p class="lead">A working voice-AI intake system for a plaintiff law firm — realtime voice, multi-agent
+  orchestration, deterministic business state, and a full audit trail.</p>
+  <p class="lead" style="margin-top:22px;color:var(--faint);font-size:16px">Built after the interview, from the
+  gap the interview identified.</p>
+</section>
+
+<section class="slide">
+  <div class="kicker">01 · The challenge</div>
+  <h2>"If you remove Vapi, can you build<br>what's underneath it?"</h2>
+  <p class="lead">Honest answer at the time: I understood the voice stack through <b>provider abstractions</b>.
+  I could ship with them. I hadn't gone deep enough into the orchestration and runtime layer they hide.</p>
+  <div class="quote" style="margin-top:26px">Rather than say "give me an assignment and I'll learn it",
+  I took the gap and built the system without hiding behind the abstraction.</div>
+</section>
+
+<section class="slide">
+  <div class="kicker">02 · What I learned</div>
+  <h2>Voice AI is not audio → LLM → audio</h2>
+  <div class="flowrow" style="margin-bottom:26px">
+    <span class="n">transport</span><span class="ar">→</span>
+    <span class="n">media</span><span class="ar">→</span>
+    <span class="n mdl">VAD</span><span class="ar">→</span>
+    <span class="n mdl">endpointing</span><span class="ar">→</span>
+    <span class="n mdl">STT</span><span class="ar">→</span>
+    <span class="n hi">orchestration</span><span class="ar">→</span>
+    <span class="n hi">context</span><span class="ar">→</span>
+    <span class="n mdl">LLM</span><span class="ar">→</span>
+    <span class="n hi">tools</span><span class="ar">→</span>
+    <span class="n dat">state</span><span class="ar">→</span>
+    <span class="n mdl">TTS</span><span class="ar">→</span>
+    <span class="n hi">observability</span>
+  </div>
+  <ul>
+    <li><b>VAD ≠ endpointing.</b> "Is there sound now" is easy. "Is this person finished" is the hard one.</li>
+    <li>Every boundary is somewhere to lose latency, information, or control.</li>
+    <li><b>The interesting engineering is between the models, not inside them.</b></li>
+  </ul>
+</section>
+
+<section class="slide">
+  <div class="kicker">03 · Architecture in one sentence</div>
+  <div class="quote" style="font-size:21px;line-height:1.55">
+    <b style="color:#fff">LiveKit</b> owns realtime media and the voice pipeline.
+    <b style="color:#fff">My orchestrator</b> owns the business state machine.
+    <b style="color:#fff">Agents</b> are specialised reasoning policies.
+    <b style="color:#fff">Tools</b> are the only way the model mutates business state.
+    <b style="color:#fff">Postgres</b> is durable truth, <b style="color:#fff">Redis</b> is ephemeral events,
+    <b style="color:#fff">OpenRouter</b> is model routing, and the <b style="color:#fff">frontend</b> is a thin
+    observability layer.
+  </div>
+  <p class="lead" style="margin-top:26px;font-size:16px;color:var(--faint)">This sentence is still true of the
+  code as written — that was the design constraint.</p>
+</section>
+
+<section class="slide">
+  <div class="kicker">04 · Concept vs implementation</div>
+  <h2>What I built vs what I integrated</h2>
+  <table>
+    <tr><th>Concept</th><th>Implementation</th><th>Built or integrated?</th></tr>
+    <tr><td>Voice gateway / transport</td><td><code>LiveKit Cloud</code></td><td style="color:var(--amber)">Integrated — deliberately</td></tr>
+    <tr><td>Turn detection</td><td><code>Silero VAD</code></td><td style="color:var(--amber)">Integrated</td></tr>
+    <tr><td>STT / TTS</td><td><code>Deepgram nova-3 / aura</code></td><td style="color:var(--amber)">Integrated</td></tr>
+    <tr><td>LLM gateway</td><td><code>OpenRouter</code></td><td style="color:var(--amber)">Integrated</td></tr>
+    <tr><td><b>Orchestration</b></td><td><code>CallOrchestrator</code></td><td style="color:var(--green)">Built</td></tr>
+    <tr><td><b>State machine</b></td><td><code>PHASE_TRANSITIONS</code></td><td style="color:var(--green)">Built</td></tr>
+    <tr><td><b>Context engineering</b></td><td><code>ContextService</code></td><td style="color:var(--green)">Built</td></tr>
+    <tr><td><b>Tool layer</b></td><td><code>ToolRegistry</code> + services</td><td style="color:var(--green)">Built</td></tr>
+    <tr><td><b>Event / audit pipeline</b></td><td><code>EventService</code></td><td style="color:var(--green)">Built</td></tr>
+  </table>
+</section>
+
+<section class="slide">
+  <div class="kicker">05 · Cascaded vs speech-to-speech</div>
+  <div class="cols">
+    <div class="card">
+      <h3 style="color:var(--green)">Cascaded — used here</h3>
+      <pre style="font-size:13px;padding:14px">audio → STT → <b style="color:#c3e88d">text</b> → LLM
+     → <b style="color:#c3e88d">text</b> → TTS → audio</pre>
+      <ul>
+        <li>Exact transcript by construction</li>
+        <li>Debuggable at every boundary</li>
+        <li>Swap any of 3 models independently</li>
+        <li>Text in / text out ⇒ <b>evals are scriptable</b></li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--amber)">Speech-to-speech</h3>
+      <pre style="font-size:13px;padding:14px">audio → encoder → repr → model
+     → repr → vocoder → audio</pre>
+      <ul>
+        <li>Keeps prosody + emotion</li>
+        <li>Lower latency floor</li>
+        <li>Harder to audit and debug</li>
+        <li>Whole-stack lock-in</li>
+      </ul>
+    </div>
+  </div>
+  <div class="quote" style="margin-top:24px;font-size:17px">For legal intake the transcript isn't a debugging
+  convenience — it's part of the deliverable. That decided it.</div>
+</section>
+
+<section class="slide">
+  <div class="kicker">06 · What's lost at the STT boundary</div>
+  <h2>Text is a lossy representation of speech</h2>
+  <div class="cols3">
+    <div class="card"><h3 style="color:var(--green)">Survives</h3><ul><li>Words</li><li>Rough timing</li></ul></div>
+    <div class="card"><h3 style="color:var(--red)">Lost</h3><ul><li>Prosody, intonation</li><li>Emotion / distress</li><li>Speaker identity</li><li>Background acoustics</li></ul></div>
+    <div class="card"><h3 style="color:var(--violet)">Consequence</h3><p>"Fine." said angrily and "Fine!" said with relief become <b>identical text</b>.</p></div>
+  </div>
+  <p class="lead" style="margin-top:24px">A deliberate tradeoff — not an oversight. I chose auditability over
+  acoustic nuance, and I can say exactly what that cost.</p>
+</section>
+
+<section class="slide">
+  <div class="kicker">07 · Orchestration</div>
+  <h2>The LLM proposes. Code decides.</h2>
+  <pre>USER SPEECH
+   ↓
+ <span class="c">probabilistic</span>   LLM ──── proposes: "move to qualification"
+   ↓
+ <span class="c">deterministic</span>  CallOrchestrator.<span class="f">prepareHandoff</span>()
+   ↓            └─ <span class="f">isTransitionAllowed</span>(INTAKE → QUALIFICATION)?
+   ↓               no → <span class="s">return null</span> — the tool is simply refused
+   ↓
+ <span class="c">validated</span>     ToolRegistry.<span class="f">wrap</span>() ── zod
+   ↓
+ <span class="c">durable</span>       PostgreSQL</pre>
+  <p class="lead" style="margin-top:22px">An LLM is probabilistic. A business process must be deterministic.
+  <b>That's why they're separate layers.</b></p>
+</section>
+
+<section class="slide">
+  <div class="kicker">08 · State machine</div>
+  <h2>9 phases, explicit legal edges</h2>
+  <div class="flowrow" style="margin-bottom:20px">
+    <span class="n">GREETING</span><span class="ar">→</span>
+    <span class="n">TRIAGE</span><span class="ar">→</span>
+    <span class="n hi">INTAKE</span><span class="ar">→</span>
+    <span class="n hi">QUALIFICATION</span><span class="ar">→</span>
+    <span class="n">SCHEDULING</span><span class="ar">→</span>
+    <span class="n">CONFIRMATION</span><span class="ar">→</span>
+    <span class="n dat">COMPLETED</span>
+  </div>
+  <p style="font-family:var(--mono);font-size:14px;color:var(--amber);margin-bottom:20px">
+    ↺ QUALIFICATION → INTAKE when the result is INSUFFICIENT &nbsp;·&nbsp; HANDOFF_HUMAN · ERROR_RECOVERY</p>
+  <ul>
+    <li>Transitions live in a <b>data table</b>, not <code>if</code> statements — printable, testable, showable to a customer</li>
+    <li>Adding a phase is a data change, not a refactor</li>
+    <li><b>The LLM cannot set the phase.</b> It can only call a tool that requests one</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <div class="kicker">09 · Agent routing &amp; handoffs</div>
+  <h2>Four agents, one shared state</h2>
+  <div class="cols">
+    <div class="card"><h3>Triage</h3><p>Why are they calling? Route to intake, answer from policy, or escalate to a human.</p></div>
+    <div class="card"><h3>Intake</h3><p>Collect facts conversationally. 6 data tools. Never invents anything.</p></div>
+    <div class="card"><h3>Qualification</h3><p><b>Explains</b> a decision it did not make. Has no tool that can change the outcome.</p></div>
+    <div class="card"><h3>Scheduling</h3><p>Mock availability + idempotent booking + confirmation.</p></div>
+  </div>
+  <p class="lead" style="margin-top:22px">Agents exist only where <b>instructions, permitted tools, or reasoning
+  behaviour</b> genuinely differ — not one per operation.</p>
+</section>
+
+<section class="slide">
+  <div class="kicker">10 · Deterministic qualification</div>
+  <h2>The rule a law firm can read</h2>
+  <pre><span class="k">export function</span> <span class="f">evaluateQualification</span>(input) {
+  <span class="k">if</span> (input.representedByAttorney === <span class="k">true</span>)
+    <span class="k">return</span> { status: DISQUALIFIED, reasons: [<span class="s">"already_represented_by_attorney"</span>] };
+
+  <span class="k">if</span> (hasInjury &amp;&amp; supportedType &amp;&amp; dateKnown)
+    <span class="k">return</span> { status: QUALIFIED, reasons: [] };
+
+  <span class="k">return</span> { status: INSUFFICIENT, reasons };
+}</pre>
+  <p class="lead" style="margin-top:20px"><b>Zero LLM calls.</b> Pure function. Same input, same answer, every
+  time — versionable, auditable, unit-testable.</p>
+</section>
+
+<section class="slide">
+  <div class="kicker">11 · Context engineering</div>
+  <h2>What reaches the model — and what doesn't</h2>
+  <div class="cols">
+    <div class="card">
+      <h3 style="color:var(--green)">Included, per turn</h3>
+      <ul>
+        <li>Role instructions (per agent)</li>
+        <li>Current phase</li>
+        <li>Known caller</li>
+        <li>Collected matter fields</li>
+        <li><b>Required missing fields</b></li>
+        <li>Topic-scoped policy only</li>
+        <li>Global hard rules</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--red)">Deliberately excluded</h3>
+      <ul>
+        <li>Full transcript</li>
+        <li>The whole database</li>
+        <li>All policy documents</li>
+        <li>Empty / null fields</li>
+        <li>Raw tool JSON dumps</li>
+        <li>Tools this agent may not use</li>
+      </ul>
+    </div>
+  </div>
+  <div class="quote" style="margin-top:22px;font-size:17px">On a voice call the caller is listening to silence
+  while the model reads context. <b>Prompt size is a latency decision.</b></div>
+</section>
+
+<section class="slide">
+  <div class="kicker">12 · Data pipeline</div>
+  <h2>AI output is not the source of truth</h2>
+  <pre>caller speaks
+  → transcript            <span class="c">persisted immediately</span>
+  → structured extraction <span class="c">strict JSON schema, background</span>
+  → <b style="color:#f87171">zod validation</b>        <span class="c">← the trust boundary</span>
+  → CallState merge       <span class="c">in-memory</span>
+  → CaseService.update()  <span class="c">only writer</span>
+  → PostgreSQL            <span class="c">durable</span>
+  → CallEvent             <span class="c">PG + Redis + SSE + log</span>
+  → next turn's context differs</pre>
+  <ul style="margin-top:18px">
+    <li>The model returns a <b>proposal</b>, never a database write</li>
+    <li>Persisted <b>per turn</b> — calls drop, and a dropped call should still leave a usable matter</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <div class="kicker">13 · Latency</div>
+  <h2>Measured per stage, not guessed</h2>
+  <div class="cols3" style="margin-bottom:24px">
+    <div class="card stat"><div class="big v">TTFT</div><div class="l">llm.completed · metadata.ttftMs</div></div>
+    <div class="card stat"><div class="big g">TTFB</div><div class="l">first_audio · durationMs</div></div>
+    <div class="card stat"><div class="big a">EOU</div><div class="l">latency.end_of_utterance</div></div>
+  </div>
+  <ul>
+    <li><b>Stream at every boundary</b> — never wait for a complete artifact to start the next stage</li>
+    <li>TTS begins on the first <b>sentence</b>, so response length stops affecting perceived latency</li>
+    <li>Extraction moved <b>off</b> the critical path — inline, it cost two sequential LLM calls per turn</li>
+    <li style="color:var(--amber)">Honest gap: the aggregate turn metric is derived from timestamps, not emitted</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <div class="kicker">14 · Interruption</div>
+  <h2>Barge-in is a state machine, not a boolean</h2>
+  <div class="flowrow" style="margin-bottom:22px">
+    <span class="n">LISTENING</span><span class="ar">→</span><span class="n">THINKING</span><span class="ar">→</span>
+    <span class="n">SPEAKING</span><span class="ar">→</span>
+    <span class="n" style="border-color:#5a3a3a;background:#241417;color:#f87171">INTERRUPTED</span><span class="ar">→</span>
+    <span class="n">TOOL_EXECUTING</span><span class="ar">→</span><span class="n dat">ENDED</span>
+  </div>
+  <ul>
+    <li>Token stream aborted · queued TTS discarded</li>
+    <li><b>Audio already played can't be recalled</b> → truncated message goes into context so the model knows what was actually heard</li>
+    <li><b>Tool calls run to completion</b> — a half-done write is worse than a wasted one; idempotency makes retry safe</li>
+    <li><code>TurnState</code> is separate from <code>CallPhase</code> — being interrupted doesn't change what stage of intake you're in</li>
+  </ul>
+</section>
+
+<section class="slide">
+  <div class="kicker">15 · A real bug worth showing</div>
+  <h2>The agent was interrupting itself</h2>
+  <pre>04:10:41  first_audio             charactersCount=148 (320ms)
+04:10:42  user.transcript.partial <span class="s">"So yeah."</span>     <span class="c">← every single time</span></pre>
+  <ul style="margin-top:20px">
+    <li>Agent's own voice → speakers → mic → VAD scored it as the caller talking</li>
+    <li>Default <code>minWords</code> is <b>0</b>: any ~500ms of speech-like audio cancels the agent</li>
+    <li>Fix: explicit echo cancellation on capture + <code>minWords: 2</code></li>
+    <li><b>The event timeline was the diagnosis.</b> That pattern is the bug — no guessing required</li>
+  </ul>
+  <div class="quote" style="margin-top:22px;font-size:17px">This is what the observability layer is for.</div>
+</section>
+
+<section class="slide">
+  <div class="kicker">16 · Failure handling</div>
+  <h2>What happens when things break</h2>
+  <table>
+    <tr><th>Fails</th><th>Behaviour</th></tr>
+    <tr><td>Tool throws</td><td>Caught in wrapper → returned as <code>{ error }</code> → agent recovers verbally</td></tr>
+    <tr><td>Extraction fails</td><td>Throws → <code>error</code> event on the timeline (this is how I found a silent 400)</td></tr>
+    <tr><td>Postgres down</td><td>Tool fails cleanly; nothing silently lost</td></tr>
+    <tr><td><b>Redis down</b></td><td><b>Live UI stops updating. Business state completely unaffected.</b></td></tr>
+    <tr><td>Caller hangs up</td><td><code>endCall()</code> still runs; everything already persisted per-turn</td></tr>
+    <tr><td>Tool called twice</td><td>Appointments idempotent on <code>callId + appointmentRequestId</code></td></tr>
+  </table>
+</section>
+
+<section class="slide">
+  <div class="kicker">17 · Live demo</div>
+  <h1 style="font-size:52px">Let's run it.</h1>
+  <p class="lead" style="margin-top:18px">Browser on the left, agent log on the right. Watch for:</p>
+  <div style="margin-top:18px">
+    <span class="tag ok">transcript streaming</span>
+    <span class="tag ok">agent.handoff</span>
+    <span class="tag ok">fields filling live</span>
+    <span class="tag ok">tool.started / completed</span>
+    <span class="tag ok">interruption.detected</span>
+    <span class="tag ok">qualification flip</span>
+    <span class="tag ok">idempotent booking</span>
+    <span class="tag ok">agent ends the call</span>
+  </div>
+</section>
+
+<section class="slide">
+  <div class="kicker">18 · Evaluation</div>
+  <h2>How would I know it's actually good?</h2>
+  <p class="lead" style="margin-bottom:22px"><b style="color:var(--amber)">Current state: no automated evals
+  exist.</b> This is the biggest gap in the project, and here's exactly what belongs here.</p>
+  <div class="cols3">
+    <div class="card"><h3>Tier 1 — unit</h3><ul><li>Qualification rules</li><li>Phase transitions</li><li>Field merging</li><li>Tool input schemas</li></ul></div>
+    <div class="card"><h3>Tier 2 — integration</h3><ul><li>Caller + matter creation</li><li>Returning-caller retrieval</li><li><b>Double-booking → 1 row</b></li></ul></div>
+    <div class="card"><h3>Tier 3 — conversations</h3><ul><li>20–30 scripted calls</li><li>Field recall / precision</li><li>Hallucinated fields = 0</li><li>Legal claims = 0</li></ul></div>
+  </div>
+  <div class="quote" style="margin-top:22px;font-size:17px">The failure mode isn't a crash — it's a confidently
+  wrong record. The architecture is eval-ready; the evals aren't written yet.</div>
+</section>
+
+<section class="slide">
+  <div class="kicker">19 · Forward-deployed fit</div>
+  <h2>Messy workflow → running system</h2>
+  <div class="cols">
+    <div class="card">
+      <h3 style="color:var(--amber)">What a firm actually says</h3>
+      <p style="font-size:15px;line-height:1.7">"Every time a new lead calls, someone asks the same questions,
+      types it into a spreadsheet, checks whether we already know them, calls them back, and books a follow-up.
+      And sometimes we lose the notes."</p>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--green)">What I turned that into</h3>
+      <ul>
+        <li>9 phases with legal transitions</li>
+        <li>13 typed intake fields</li>
+        <li>4 explicit qualification rules</li>
+        <li>9 validated tools</li>
+        <li>A complete audit trail</li>
+      </ul>
+    </div>
+  </div>
+  <div class="quote" style="margin-top:24px">The parts most likely to differ per customer — rules, policy docs,
+  required fields — I deliberately made <b>data, not code</b>. When a firm tells me their real criteria, that's a
+  config change on a call, not a prompt I have to re-tune.</div>
+</section>
+
+<section class="slide">
+  <div class="kicker">20 · Takeaway</div>
+  <h1 style="font-size:40px;line-height:1.2">The interview gave me a direction.<br>I went and built the layer.</h1>
+  <ul style="margin-top:26px">
+    <li>I can explain <b>every boundary</b> from microphone to database and back</li>
+    <li>I know what I <b>integrated</b> and what I <b>built</b> — and why that split is correct</li>
+    <li>I know what's <b>missing</b>: evals, auth, telephony, retry policy — and what I'd do about each</li>
+    <li>The parts a customer would change, I made <b>configurable by design</b></li>
+  </ul>
+  <div class="quote" style="margin-top:28px;font-size:19px">This is the closest thing I could build to the actual
+  work. I'd like to do it with real customers.</div>
+</section>
+
+<div class="hint">← → arrows · or click dots</div>
+<div class="num"><span id="cur">1</span> / <span id="tot">20</span></div>
+<div class="nav" id="nav"></div>
+
+<script>
+const slides = [...document.querySelectorAll('.slide')];
+const nav = document.getElementById('nav');
+const cur = document.getElementById('cur');
+document.getElementById('tot').textContent = slides.length;
+let i = 0;
+slides.forEach((_, n) => {
+  const d = document.createElement('div');
+  d.className = 'dot' + (n === 0 ? ' on' : '');
+  d.onclick = () => go(n);
+  nav.appendChild(d);
+});
+const dots = [...nav.children];
+function go(n) {
+  i = Math.max(0, Math.min(slides.length - 1, n));
+  slides.forEach((s, x) => s.classList.toggle('on', x === i));
+  dots.forEach((d, x) => d.classList.toggle('on', x === i));
+  cur.textContent = i + 1;
+  slides[i].scrollTop = 0;
+}
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); go(i + 1); }
+  if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); go(i - 1); }
+  if (e.key === 'Home') go(0);
+  if (e.key === 'End') go(slides.length - 1);
+});
+</script>
+</body>
+</html>

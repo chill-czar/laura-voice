@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orchestration Deep Dive</title>
+<style>
+:root{--bg:#0a0c11;--panel:#12151d;--panel2:#171b25;--line:#252b39;--soft:#1c212c;--text:#e8ebf2;--dim:#98a1b5;--faint:#626b80;--accent:#7c8cf5;--violet:#a78bfa;--green:#4ade80;--amber:#fbbf24;--red:#f87171;--cyan:#38bdf8;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:36px 24px 90px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:30px;letter-spacing:-.02em}
+.sub{color:var(--dim);margin:6px 0 28px}
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:36px 0 12px;font-weight:700}
+h3{font-size:15px;margin:0 0 8px}
+p{color:var(--dim);margin-bottom:10px;font-size:14px}
+code{font-family:var(--mono);font-size:.88em;color:var(--cyan)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+pre{background:#0d1017;border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;color:#cdd6e6}
+.k{color:#c792ea}.s{color:#c3e88d}.c{color:#546a90}.f{color:#82aaff}.n{color:#f78c6c}
+.note{border-left:3px solid var(--accent);background:#10141d;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;color:var(--dim);font-size:14px}
+.note.warn{border-left-color:var(--amber)}
+.note strong{color:var(--text)}
+ul{margin:0 0 8px 17px;color:var(--dim);font-size:13.5px}
+li{margin-bottom:5px}
+.file{font-family:var(--mono);font-size:11px;color:var(--faint);display:block;margin-top:8px}
+.say{border:1px dashed #33406b;background:#101524;border-radius:8px;padding:12px 15px;margin:12px 0;color:#b9c5e8;font-size:13.5px}
+.say::before{content:"SAY THIS";display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--accent);margin-bottom:5px}
+.fsm{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px;overflow-x:auto}
+.lane{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:nowrap;min-width:760px}
+.st{border:1px solid #3d4a86;background:#141a2c;border-radius:8px;padding:8px 13px;font-family:var(--mono);font-size:11.5px;white-space:nowrap}
+.st.end{border-color:#235437;background:#101d17;color:var(--green)}
+.st.alt{border-color:#4a3a1a;background:#1e1a10;color:var(--amber)}
+.ar{color:var(--accent);font-size:14px}
+.back{text-align:center;margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--amber)}
+.owner{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:6px}
+.owner>div{padding:15px 16px;border-right:1px solid var(--line)}
+.owner>div:last-child{border-right:0}
+.owner h4{font-size:11px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px}
+@media(max-width:900px){.owner{grid-template-columns:1fr}.owner>div{border-right:0;border-bottom:1px solid var(--line)}}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--soft);color:var(--dim);vertical-align:top}
+td:first-child{color:var(--text)}
+tr:last-child td{border:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Orchestration</h1>
+  <p class="sub">The layer that actually distinguishes a demo from a product. Everything here is my code.</p>
+
+  <h2>Why the LLM is not the orchestrator</h2>
+  <div class="card">
+    <p>An LLM is a <strong>probabilistic</strong> function. Given the same input it may produce different output, and
+    it has no enforceable notion of "not allowed". A business process needs the opposite: the same input must produce
+    the same decision, and illegal transitions must be impossible rather than unlikely.</p>
+    <p>So I split them. The model proposes; deterministic code disposes.</p>
+  </div>
+
+  <div class="card" style="background:#0d1017">
+    <pre>USER SPEECH
+    │
+    ▼
+  <span class="c">probabilistic</span>            LLM  ──── proposes: "call proceed_to_qualification"
+    │
+    ▼
+  <span class="c">deterministic</span>   CallOrchestrator.prepareHandoff()
+    │                     ├── isTransitionAllowed(INTAKE → QUALIFICATION)?
+    │                     ├── no  → return null → tool replies "not ready yet"
+    │                     └── yes → build agent, emit agent.handoff, mutate phase
+    ▼
+  <span class="c">validated</span>       ToolRegistry.wrap()  ── zod-validate input
+    │
+    ▼
+  <span class="c">typed</span>           CaseService / AppointmentService
+    │
+    ▼
+  <span class="c">durable</span>         PostgreSQL</pre>
+  </div>
+
+  <h2>The state machine</h2>
+  <div class="fsm">
+    <div class="lane">
+      <span class="st">GREETING</span><span class="ar">→</span>
+      <span class="st">TRIAGE</span><span class="ar">→</span>
+      <span class="st">INTAKE</span><span class="ar">→</span>
+      <span class="st">QUALIFICATION</span><span class="ar">→</span>
+      <span class="st">SCHEDULING</span><span class="ar">→</span>
+      <span class="st">CONFIRMATION</span><span class="ar">→</span>
+      <span class="st end">COMPLETED</span>
+    </div>
+    <div class="back">↑ QUALIFICATION → INTAKE loops back when the result is INSUFFICIENT ↑</div>
+    <div class="lane" style="margin-top:14px">
+      <span class="st alt">HANDOFF_HUMAN</span>
+      <span class="st alt">ERROR_RECOVERY</span>
+      <span style="font-family:var(--mono);font-size:11px;color:var(--faint)">— reachable from most states, terminal or recoverable</span>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <pre><span class="k">export const</span> PHASE_TRANSITIONS: Record&lt;CallPhase, CallPhase[]&gt; = {
+  GREETING:      [TRIAGE, ERROR_RECOVERY],
+  TRIAGE:        [INTAKE, HANDOFF_HUMAN, COMPLETED, ERROR_RECOVERY],
+  INTAKE:        [QUALIFICATION, HANDOFF_HUMAN, COMPLETED, ERROR_RECOVERY],
+  QUALIFICATION: [SCHEDULING, INTAKE, HANDOFF_HUMAN, COMPLETED, ERROR_RECOVERY],
+  SCHEDULING:    [CONFIRMATION, INTAKE, HANDOFF_HUMAN, ERROR_RECOVERY],
+  CONFIRMATION:  [COMPLETED, ERROR_RECOVERY],
+  COMPLETED:     [],   <span class="c">// terminal</span>
+  HANDOFF_HUMAN: [],   <span class="c">// terminal</span>
+  ERROR_RECOVERY:[TRIAGE, INTAKE, COMPLETED],
+};</pre>
+    <span class="file">packages/shared/src/phases.ts</span>
+    <div class="note" style="margin-bottom:0"><strong>Why a table and not <code>if</code> statements?</strong>
+    Because it's data. I can print it, diagram it, test it exhaustively, and show a customer the legal paths
+    without reading code. Adding a phase is a data change, not a refactor.</div>
+  </div>
+
+  <h2>Who owns what</h2>
+  <div class="owner">
+    <div>
+      <h4 style="color:var(--violet)">Agent (LLM policy)</h4>
+      <ul>
+        <li>Conversational phrasing</li>
+        <li>Which tool seems relevant</li>
+        <li>Extracting meaning from messy speech</li>
+        <li>Deciding a question is answered</li>
+      </ul>
+    </div>
+    <div>
+      <h4 style="color:var(--accent)">Orchestrator</h4>
+      <ul>
+        <li>Current phase + legal transitions</li>
+        <li>Which agent is active</li>
+        <li>What context is assembled</li>
+        <li>Qualification outcome</li>
+        <li>Call lifecycle / teardown</li>
+      </ul>
+    </div>
+    <div>
+      <h4 style="color:var(--green)">Tool + services</h4>
+      <ul>
+        <li>Input validation (zod)</li>
+        <li>The actual mutation</li>
+        <li>Idempotency</li>
+        <li>Error containment</li>
+        <li>Emitting tool events</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Handoff — the actual code path</h2>
+  <div class="card">
+    <pre><span class="c">// TriageAgent — the LLM can only ever *ask*</span>
+tool({
+  name: <span class="s">"begin_intake"</span>,
+  execute: <span class="k">async</span> () =&gt; {
+    <span class="k">const</span> result = orchestrator.<span class="f">prepareHandoff</span>(AgentName.INTAKE);
+    <span class="k">if</span> (!result) <span class="k">return</span> <span class="s">"I'm not able to move to intake right now."</span>;  <span class="c">// refused</span>
+    <span class="k">return</span> <span class="f">handoff</span>({ agent: result.agent, returns: <span class="s">"Continuing to intake."</span> });
+  },
+})
+
+<span class="c">// CallOrchestrator — the only place a transition actually happens</span>
+<span class="f">prepareHandoff</span>(target: AgentName) {
+  <span class="k">const</span> targetPhase = PHASE_FOR_AGENT[target];
+  <span class="k">const</span> changed = <span class="k">this</span>.<span class="f">transitionPhase</span>(targetPhase, <span class="s">`handoff to ${target}`</span>);
+  <span class="k">if</span> (!changed &amp;&amp; <span class="k">this</span>.state.currentPhase !== targetPhase) <span class="k">return null</span>;  <span class="c">// ← the gate</span>
+  <span class="k">this</span>.state.activeAgent = target;
+  <span class="k">void this</span>.eventService.<span class="f">emit</span>(AGENT_HANDOFF, {...});
+  <span class="k">return</span> { agent: AGENT_FACTORIES[target](<span class="k">this</span>), phaseChanged: changed };
+}</pre>
+    <span class="file">apps/agent/src/agents/TriageAgent.ts · orchestrator/CallOrchestrator.ts</span>
+  </div>
+
+  <h2>Qualification — deterministic on purpose</h2>
+  <div class="card">
+    <pre><span class="k">export function</span> <span class="f">evaluateQualification</span>(input): QualificationResult {
+  <span class="k">const</span> hasInjury     = (input.injuries?.length ?? <span class="n">0</span>) &gt; <span class="n">0</span>;
+  <span class="k">const</span> supportedType = SUPPORTED_INCIDENT_TYPES.includes(input.incidentType);
+  <span class="k">const</span> dateKnown     = Boolean(input.incidentDate);
+
+  <span class="k">if</span> (input.representedByAttorney === <span class="k">true</span>)
+    <span class="k">return</span> { status: DISQUALIFIED, reasons: [<span class="s">"already_represented_by_attorney"</span>] };
+
+  <span class="k">if</span> (hasInjury &amp;&amp; supportedType &amp;&amp; dateKnown)
+    <span class="k">return</span> { status: QUALIFIED, reasons: [] };
+
+  <span class="k">return</span> { status: INSUFFICIENT, reasons };  <span class="c">// machine-readable why</span>
+}</pre>
+    <span class="file">packages/shared/src/intake.ts — a pure function, zero LLM calls</span>
+  </div>
+  <div class="say">This is the line I'd defend hardest. A law firm cannot have a language model deciding who is
+  disqualified — that has to be a rule someone can read, version, and audit. The model's job is to figure out
+  <em>whether the caller said they have an attorney</em>. The rule's job is to decide what that means.
+  <code>QualificationAgent</code> only explains the outcome; it has no tool that can change it.</div>
+
+  <h2>Tool execution — one wrapper, four guarantees</h2>
+  <div class="card">
+    <table>
+      <tr><th>Guarantee</th><th>How</th></tr>
+      <tr><td>No schema drift</td><td>The zod schema that validates input is the same one that generates the JSON schema the LLM sees</td></tr>
+      <tr><td>Every call is observable</td><td><code>tool.started</code> with input → <code>tool.completed</code> with output + <code>durationMs</code></td></tr>
+      <tr><td>Failures never crash the call</td><td>Exceptions are caught and returned as <code>{ error }</code> so the agent can apologise and retry verbally</td></tr>
+      <tr><td>Retries are safe where it matters</td><td><code>schedule_follow_up</code> keys on <code>callId + appointmentRequestId</code>, unique-constrained in Postgres</td></tr>
+    </table>
+  </div>
+
+  <h2>Source-of-truth rule</h2>
+  <div class="card">
+    <table>
+      <tr><th>Layer</th><th>Owns</th><th>If it dies</th></tr>
+      <tr><td>LLM</td><td>Language, extraction, tool selection</td><td>Call degrades; no data corrupted</td></tr>
+      <tr><td>Orchestrator</td><td>Control flow, phase, permissions</td><td>Call cannot proceed — by design</td></tr>
+      <tr><td>Tools + services</td><td>All state mutation</td><td>Agent reports failure verbally, keeps talking</td></tr>
+      <tr><td>PostgreSQL</td><td>Durable business truth</td><td>Real outage — this is the thing that must not be lost</td></tr>
+      <tr><td>Redis</td><td>Events, live feed</td><td>UI goes quiet; <strong>the matter is untouched</strong></td></tr>
+      <tr><td>LiveKit</td><td>Media transport, session</td><td>Call drops; DB state already persisted per-turn</td></tr>
+    </table>
+    <div class="note" style="margin-bottom:0">That last column is the point of the separation. I persist intake
+    fields <em>as they're extracted</em>, not at the end of the call — so a dropped call still leaves a usable
+    matter behind.</div>
+  </div>
+</div>
+</body>
+</html>

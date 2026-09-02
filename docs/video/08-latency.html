@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Latency</title>
+<style>
+:root{--bg:#0a0c11;--panel:#12151d;--panel2:#171b25;--line:#252b39;--soft:#1c212c;--text:#e8ebf2;--dim:#98a1b5;--faint:#626b80;--accent:#7c8cf5;--violet:#a78bfa;--green:#4ade80;--amber:#fbbf24;--red:#f87171;--cyan:#38bdf8;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:36px 24px 90px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:30px;letter-spacing:-.02em}
+.sub{color:var(--dim);margin:6px 0 28px}
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:36px 0 12px;font-weight:700}
+h3{font-size:15px;margin:0 0 8px}
+p{color:var(--dim);margin-bottom:10px;font-size:14px}
+code{font-family:var(--mono);font-size:.88em;color:var(--cyan)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+.note{border-left:3px solid var(--accent);background:#10141d;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;color:var(--dim);font-size:14px}
+.note.warn{border-left-color:var(--amber)}
+.note.bad{border-left-color:var(--red)}
+.note strong{color:var(--text)}
+ul{margin:0 0 8px 17px;color:var(--dim);font-size:13.5px}
+li{margin-bottom:5px}
+.say{border:1px dashed #33406b;background:#101524;border-radius:8px;padding:12px 15px;margin:12px 0;color:#b9c5e8;font-size:13.5px}
+.say::before{content:"SAY THIS";display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--accent);margin-bottom:5px}
+.tl{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}
+.seg{display:grid;grid-template-columns:210px 1fr 92px;gap:14px;align-items:center;margin-bottom:9px}
+.seg .lbl{font-family:var(--mono);font-size:11.5px;color:var(--dim);text-align:right}
+.seg .bar{height:26px;border-radius:5px;position:relative;background:#0e1320;border:1px solid var(--soft);overflow:hidden}
+.seg .fill{height:100%;border-radius:4px;display:flex;align-items:center;padding-left:9px;font-family:var(--mono);font-size:10.5px;color:#0a0c11;font-weight:700}
+.seg .ms{font-family:var(--mono);font-size:11.5px;color:var(--text);text-align:right}
+.b1{background:linear-gradient(90deg,#fbbf24,#f59e0b)}
+.b2{background:linear-gradient(90deg,#38bdf8,#0ea5e9)}
+.b3{background:linear-gradient(90deg,#7c8cf5,#6366f1)}
+.b4{background:linear-gradient(90deg,#a78bfa,#8b5cf6)}
+.b5{background:linear-gradient(90deg,#4ade80,#22c55e)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--soft);color:var(--dim);vertical-align:top}
+td:first-child{color:var(--text)}
+tr:last-child td{border:0}
+pre{background:#0d1017;border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;color:#cdd6e6}
+.c{color:#546a90}.s{color:#c3e88d}.k{color:#c792ea}
+.have{color:var(--green);font-family:var(--mono);font-size:11px}
+.missing{color:var(--amber);font-family:var(--mono);font-size:11px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Latency</h1>
+  <p class="sub">Every number on this page comes from instrumentation that exists in the code. None are invented.</p>
+
+  <div class="note bad"><strong>Before recording:</strong> the bar values below are from one observed development
+  call. Run your demo call, open the call detail page, and read <em>your</em> numbers off the Latency panel.
+  Never quote these on camera as if they were measured live.</div>
+
+  <h2>The turn budget — where the time actually goes</h2>
+  <div class="tl">
+    <div class="seg">
+      <span class="lbl">user stops speaking</span>
+      <span class="bar"></span>
+      <span class="ms">t=0</span>
+    </div>
+    <div class="seg">
+      <span class="lbl">endpointing (VAD)</span>
+      <span class="bar"><div class="fill b1" style="width:32%">end-of-utterance</div></span>
+      <span class="ms">~578ms</span>
+    </div>
+    <div class="seg">
+      <span class="lbl">STT final</span>
+      <span class="bar"><div class="fill b2" style="width:23%">transcription</div></span>
+      <span class="ms">~415ms</span>
+    </div>
+    <div class="seg">
+      <span class="lbl">LLM first token</span>
+      <span class="bar"><div class="fill b3" style="width:40%">TTFT</div></span>
+      <span class="ms">~700ms</span>
+    </div>
+    <div class="seg">
+      <span class="lbl">TTS first byte</span>
+      <span class="bar"><div class="fill b4" style="width:17%">TTFB</div></span>
+      <span class="ms">~300ms</span>
+    </div>
+    <div class="seg">
+      <span class="lbl">caller hears audio</span>
+      <span class="bar"><div class="fill b5" style="width:100%">perceived response delay</div></span>
+      <span class="ms">≈2.0s</span>
+    </div>
+  </div>
+  <p style="font-size:12.5px;color:var(--faint);margin-top:8px">Bars are proportional to observed values from a
+  development call: eou 577–580ms · transcriptionDelay 400–487ms · TTFT 590–820ms · TTS TTFB 284–411ms.</p>
+
+  <h2>What is instrumented today</h2>
+  <table>
+    <tr><th>Measurement</th><th>Event</th><th>Field</th><th>Status</th></tr>
+    <tr><td>End-of-utterance delay</td><td><code>latency.end_of_utterance</code></td><td><code>durationMs</code></td><td class="have">✓ measured</td></tr>
+    <tr><td>STT transcription delay</td><td><code>latency.end_of_utterance</code></td><td><code>metadata.transcriptionDelayMs</code></td><td class="have">✓ measured</td></tr>
+    <tr><td>LLM time-to-first-token</td><td><code>llm.completed</code></td><td><code>metadata.ttftMs</code></td><td class="have">✓ measured</td></tr>
+    <tr><td>LLM total duration</td><td><code>llm.completed</code></td><td><code>durationMs</code></td><td class="have">✓ measured</td></tr>
+    <tr><td>Prompt / completion tokens</td><td><code>llm.completed</code></td><td><code>metadata.promptTokens</code></td><td class="have">✓ measured</td></tr>
+    <tr><td>TTS time-to-first-byte</td><td><code>first_audio</code></td><td><code>durationMs</code></td><td class="have">✓ measured</td></tr>
+    <tr><td>Tool execution</td><td><code>tool.completed</code></td><td><code>durationMs</code></td><td class="have">✓ measured</td></tr>
+    <tr><td>Extraction duration</td><td><code>intake.fields_extracted</code></td><td><code>durationMs</code></td><td class="have">✓ measured</td></tr>
+    <tr><td><strong>End-to-end turn latency</strong></td><td>—</td><td>—</td><td class="missing">⚠ derived, not emitted</td></tr>
+    <tr><td>Context assembly time</td><td><code>context.retrieved</code></td><td>—</td><td class="missing">⚠ type defined, never emitted</td></tr>
+    <tr><td>DB query latency</td><td>—</td><td>—</td><td class="missing">⚠ not instrumented</td></tr>
+  </table>
+
+  <div class="note warn"><strong>Say this honestly:</strong> "Each stage is measured. The single end-to-end number
+  isn't emitted as its own event yet — I derive it by subtracting event timestamps. If I were productionising this,
+  a <code>turn.completed</code> event carrying the full breakdown would be the next thing I add, so I could alert on
+  p95 rather than eyeball a timeline."</div>
+
+  <h2>To add before recording (30 minutes of work, big payoff)</h2>
+  <div class="card">
+    <pre><span class="c">// In entry.ts — stamp when the user's final transcript lands,</span>
+<span class="c">// then emit one aggregate event when first audio goes out.</span>
+<span class="k">let</span> turnStartedAt: number | <span class="k">null</span> = <span class="k">null</span>;
+
+session.on(UserInputTranscribed, (ev) =&gt; {
+  <span class="k">if</span> (ev.isFinal) turnStartedAt = Date.now();
+});
+
+<span class="c">// inside the tts_metrics branch of MetricsCollected:</span>
+<span class="k">if</span> (turnStartedAt) {
+  <span class="k">void</span> orchestrator.eventService.emit(<span class="s">"latency.turn_total"</span>, {
+    durationMs: Date.now() - turnStartedAt,
+    metadata: { ttftMs: lastTtft, ttsTtfbMs: Math.round(m.ttfbMs) },
+  });
+  turnStartedAt = <span class="k">null</span>;
+}</pre>
+    <p style="margin-top:10px">That single event turns the Latency panel from a list of stage timings into the number
+    that actually matters — and it's the number Biswa will ask about.</p>
+  </div>
+
+  <h2>Why streaming is non-negotiable</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>Without streaming</h3>
+      <ul>
+        <li>Wait for the <em>entire</em> utterance → transcribe</li>
+        <li>Wait for the <em>entire</em> LLM response</li>
+        <li>Wait for the <em>entire</em> audio file</li>
+        <li>Then start playing</li>
+      </ul>
+      <p style="color:var(--red)">Latency = sum of all four completions. A 4-second answer takes 4 seconds before a
+      single word is heard.</p>
+    </div>
+    <div class="card">
+      <h3>With streaming (this system)</h3>
+      <ul>
+        <li>STT emits partials continuously, final on endpoint</li>
+        <li>LLM streams tokens — TTS starts on the first <em>sentence</em></li>
+        <li>Audio frames pushed to the room as they arrive</li>
+      </ul>
+      <p style="color:var(--green)">Latency = time to the <em>first</em> unit at each stage. Response length stops
+      mattering for perceived responsiveness.</p>
+    </div>
+  </div>
+
+  <h2>Optimisations actually implemented</h2>
+  <div class="card">
+    <table>
+      <tr><th>Decision</th><th>Why</th><th>Where</th></tr>
+      <tr><td>VAD prewarmed once per worker</td><td>Model load kept out of the call path entirely</td><td><code>entry.ts prewarm()</code></td></tr>
+      <tr><td>Local VAD, not a cloud endpoint</td><td>No network round-trip inside the turn loop</td><td>Silero ONNX</td></tr>
+      <tr><td>Extraction runs detached</td><td>The framework awaits turn callbacks before speaking — awaiting a second LLM call there would add its full latency to <em>every</em> turn</td><td><code>scheduleExtraction()</code></td></tr>
+      <tr><td>Empty fields excluded from context</td><td>Fewer prompt tokens = less time the caller spends in silence</td><td><code>ContextService.formatFields</code></td></tr>
+      <tr><td>Per-agent tool scoping</td><td>Smaller tool schema per request</td><td>each agent's <code>tools[]</code></td></tr>
+    </table>
+  </div>
+  <div class="say">The extraction one is my favourite because it's a real bug I introduced and then fixed. I had it
+  awaited inline, which meant every single turn paid for two sequential LLM calls before the agent could speak.
+  Moving it to a tracked background promise — with qualification awaiting that exact promise before it reads the
+  fields — kept correctness while removing a whole round-trip from the critical path.</div>
+
+  <h2>Not yet done — name these if asked</h2>
+  <div class="card">
+    <ul>
+      <li><strong>Semantic turn detection.</strong> LiveKit ships a turn-detector model that predicts end-of-turn from transcript content; I'm on plain VAD endpointing. That ~578ms is the most compressible number on the page.</li>
+      <li><strong>Speculative/preemptive generation.</strong> Start the LLM on a partial transcript and discard if the user continues.</li>
+      <li><strong>Prompt caching.</strong> The policy blocks are stable across turns and are re-sent every time.</li>
+      <li><strong>Model tiering.</strong> Triage could run on a much smaller model than intake.</li>
+      <li><strong>p50/p95 aggregation.</strong> Today I can read one call's timeline; I can't yet alert on a regression.</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

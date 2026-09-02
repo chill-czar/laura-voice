@@ -9,14 +9,7 @@ const intakeJsonSchema = toStrictJsonSchema(z.toJSONSchema(intakeFieldsSchema) a
 
 type JsonSchemaObject = Record<string, unknown>;
 
-/**
- * OpenAI-compatible `strict: true` structured output has two requirements zod does not
- * emit for a schema of optional fields: every object must set `additionalProperties:
- * false`, and every property must be listed in `required`. Sending the raw zod output is
- * rejected outright with a 400 ("'additionalProperties' is required to be supplied and to
- * be false"), which silently disabled all extraction. "Unknown" is therefore expressed as
- * an explicit null value (each field is already nullable) rather than an absent key.
- */
+
 function toStrictJsonSchema(schema: JsonSchemaObject): JsonSchemaObject {
   if (schema.type !== "object" || typeof schema.properties !== "object" || schema.properties === null) {
     return schema;
@@ -45,14 +38,7 @@ export interface ExtractIntakeResult {
   durationMs: number;
 }
 
-/**
- * Thin wrapper around `@openrouter/sdk` (CLAUDE.md §7 `OpenRouterService`).
- * This is the ONLY place in the codebase that talks to OpenRouter directly
- * for non-realtime calls (structured extraction, summarization) — the
- * realtime conversational LLM is a separate client configured on
- * `AgentSession` (see agents/*.ts), since that one needs LiveKit's streaming
- * adapter, not a request/response SDK call.
- */
+
 export class OpenRouterService {
   private readonly client: OpenRouter;
 
@@ -60,12 +46,6 @@ export class OpenRouterService {
     this.client = new OpenRouter({ apiKey: env.OPENROUTER_API_KEY });
   }
 
-  /**
-   * Structured extraction (CLAUDE.md §15). The model is constrained to the
-   * IntakeFields JSON schema and instructed to only report what the caller
-   * actually said — the result is still re-validated with zod before
-   * anything is persisted (CaseService/ToolRegistry do that step).
-   */
   async extractIntakeFields(input: ExtractIntakeInput): Promise<ExtractIntakeResult> {
     const start = Date.now();
     let text = "";
@@ -99,9 +79,6 @@ export class OpenRouterService {
       if (!("choices" in result)) throw new Error("unexpected streaming response");
       text = extractText(result.choices[0]?.message?.content);
     } catch (err) {
-      // Rethrow rather than returning {}. Swallowing this is what made a hard provider
-      // 400 look indistinguishable from "the caller didn't mention anything extractable"
-      // — the caller turns it into a visible ERROR call event instead (CLAUDE.md §27).
       throw new Error(`extraction request failed: ${describeError(err)}`);
     }
 

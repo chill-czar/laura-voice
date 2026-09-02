@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speech Model Architectures</title>
+<style>
+:root{--bg:#0a0c11;--panel:#12151d;--panel2:#171b25;--line:#252b39;--soft:#1c212c;--text:#e8ebf2;--dim:#98a1b5;--faint:#626b80;--accent:#7c8cf5;--violet:#a78bfa;--green:#4ade80;--amber:#fbbf24;--red:#f87171;--cyan:#38bdf8;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:36px 24px 90px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:30px;letter-spacing:-.02em}
+.sub{color:var(--dim);margin:6px 0 28px}
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:36px 0 12px;font-weight:700}
+h3{font-size:15px;margin:0 0 8px}
+p{color:var(--dim);margin-bottom:10px;font-size:14px}
+code{font-family:var(--mono);font-size:.88em;color:var(--cyan)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+.chain{display:flex;flex-direction:column;gap:0;align-items:center;padding:16px 0}
+.box{border:1px solid var(--line);background:var(--panel2);border-radius:8px;padding:9px 14px;text-align:center;width:100%;max-width:330px}
+.box .t{font-size:13px;font-weight:600}
+.box .d{font-family:var(--mono);font-size:10px;color:var(--faint);margin-top:2px}
+.box.txt{border-color:#2a4a3a;background:#101c17}
+.box.aud{border-color:#4a3a1a;background:#1e1a10}
+.box.mdl{border-color:#3d3357;background:#171327}
+.dn{width:1px;height:16px;background:var(--line);position:relative}
+.dn::after{content:"";position:absolute;bottom:0;left:50%;transform:translateX(-50%);border:4px solid transparent;border-top-color:var(--accent)}
+.note{border-left:3px solid var(--accent);background:#10141d;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;color:var(--dim);font-size:14px}
+.note.warn{border-left-color:var(--amber)}
+.note.bad{border-left-color:var(--red)}
+.note strong{color:var(--text)}
+ul{margin:0 0 8px 17px;color:var(--dim);font-size:13.5px}
+li{margin-bottom:5px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--soft);color:var(--dim);vertical-align:top}
+td:first-child{color:var(--text)}
+tr:last-child td{border:0}
+.win{color:var(--green);font-weight:600}
+.lose{color:var(--red)}
+.say{border:1px dashed #33406b;background:#101524;border-radius:8px;padding:12px 15px;margin:12px 0;color:#b9c5e8;font-size:13.5px}
+.say::before{content:"SAY THIS";display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--accent);margin-bottom:5px}
+.hdr{display:flex;align-items:baseline;gap:10px;margin-bottom:4px}
+.badge{font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:999px}
+.badge.used{background:#132a1c;color:var(--green);border:1px solid #235437}
+.badge.notused{background:#241d0f;color:var(--amber);border:1px solid #4a3a1a}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Cascaded vs Speech-to-Speech</h1>
+  <p class="sub">General model-level architecture, and why this project uses the one it uses.</p>
+
+  <div class="note bad"><strong>Scope discipline:</strong> everything below is publicly-documented general
+  architecture. I have not trained a speech model, and I make no claims about the internals of any specific
+  proprietary model. Where I don't know, I say I don't know.</div>
+
+  <div class="grid2">
+    <div class="card">
+      <div class="hdr"><h3>A. Cascaded</h3><span class="badge used">THIS PROJECT</span></div>
+      <div class="chain">
+        <div class="box aud"><div class="t">Audio in</div><div class="d">PCM frames</div></div>
+        <div class="dn"></div>
+        <div class="box mdl"><div class="t">STT model</div><div class="d">Deepgram nova-3</div></div>
+        <div class="dn"></div>
+        <div class="box txt"><div class="t">TEXT</div><div class="d">discrete, loggable, diffable</div></div>
+        <div class="dn"></div>
+        <div class="box mdl"><div class="t">LLM</div><div class="d">via OpenRouter</div></div>
+        <div class="dn"></div>
+        <div class="box txt"><div class="t">TEXT + tool calls</div><div class="d">structured</div></div>
+        <div class="dn"></div>
+        <div class="box mdl"><div class="t">TTS model</div><div class="d">Deepgram aura</div></div>
+        <div class="dn"></div>
+        <div class="box aud"><div class="t">Audio out</div></div>
+      </div>
+      <p>Three independent models, joined by <strong>text</strong>. Text is the integration format — which is
+      exactly why it's easy to log, test, and swap providers.</p>
+    </div>
+
+    <div class="card">
+      <div class="hdr"><h3>B. Speech-to-speech</h3><span class="badge notused">NOT USED HERE</span></div>
+      <div class="chain">
+        <div class="box aud"><div class="t">Audio in</div><div class="d">raw waveform</div></div>
+        <div class="dn"></div>
+        <div class="box mdl"><div class="t">Speech encoder</div><div class="d">audio → embeddings/tokens</div></div>
+        <div class="dn"></div>
+        <div class="box mdl"><div class="t">Audio representation</div><div class="d">continuous or discrete units</div></div>
+        <div class="dn"></div>
+        <div class="box mdl"><div class="t">Multimodal model</div><div class="d">reasons over audio directly</div></div>
+        <div class="dn"></div>
+        <div class="box mdl"><div class="t">Output representation</div><div class="d">predicted audio units</div></div>
+        <div class="dn"></div>
+        <div class="box mdl"><div class="t">Vocoder / decoder</div><div class="d">units → waveform</div></div>
+        <div class="dn"></div>
+        <div class="box aud"><div class="t">Audio out</div></div>
+      </div>
+      <p>No text bottleneck in the middle. The model consumes and produces audio representations directly, so
+      prosody and tone can influence the response.</p>
+    </div>
+  </div>
+
+  <h2>The three terms you should be able to define cleanly</h2>
+  <div class="card">
+    <h3>Speech encoder</h3>
+    <p>Converts a waveform into a representation a model can reason over — typically by framing the audio into
+    short windows and producing a sequence of vectors (or discrete "audio tokens" via a learned codebook).
+    Conceptually the audio analogue of tokenising text. Crucially it can retain acoustic detail that a
+    transcript throws away.</p>
+  </div>
+  <div class="card">
+    <h3>Vocoder / audio decoder</h3>
+    <p>The inverse: turns a predicted intermediate representation (mel-spectrogram, or discrete audio codes) back
+    into an actual waveform you can play. It's the component that makes generated speech <em>sound</em> like speech
+    rather than a spectrogram. In a classic TTS stack there's an acoustic model then a vocoder; modern systems
+    often collapse these.</p>
+  </div>
+  <div class="card">
+    <h3>Acoustic vs semantic information</h3>
+    <p><strong>Semantic</strong> = what was said (survives transcription). <strong>Acoustic</strong> = how it was
+    said: pitch, energy, rate, timbre, hesitation (does not survive transcription). Speech-to-speech keeps both in
+    the same representation; cascaded deliberately discards the acoustic half at the STT boundary.</p>
+  </div>
+
+  <h2>Why I chose cascaded for this system</h2>
+  <table>
+    <tr><th>Dimension</th><th>Cascaded</th><th>Speech-to-speech</th></tr>
+    <tr><td>Turn latency</td><td>Three sequential hops — additive</td><td class="win">Fewer hops, generally lower floor</td></tr>
+    <tr><td>Emotion / prosody in</td><td class="lose">Lost at STT</td><td class="win">Preserved</td></tr>
+    <tr><td>Expressive output</td><td>Limited to TTS voice controls</td><td class="win">Can modulate naturally</td></tr>
+    <tr><td>Transcript for audit</td><td class="win">Exact, by construction</td><td>Needs separate transcription</td></tr>
+    <tr><td>Debuggability</td><td class="win">Inspect text at every boundary</td><td>Harder — failures are in latent space</td></tr>
+    <tr><td>Tool calling maturity</td><td class="win">Well-established</td><td>Newer, more variable</td></tr>
+    <tr><td>Provider swap</td><td class="win">Any of the 3 independently</td><td>Whole-stack lock-in</td></tr>
+    <tr><td>Cost control</td><td class="win">Per-stage, tune each</td><td>Coarser</td></tr>
+    <tr><td>Evaluation</td><td class="win">Text in/out = scriptable evals</td><td>Requires audio-level eval harness</td></tr>
+  </table>
+
+  <div class="say">For a <em>legal intake</em> product specifically, the transcript isn't a debugging convenience —
+  it's part of the deliverable. The firm needs a record of what the caller said. That alone pushes me toward
+  cascaded, and the auditability and per-stage swappability are what let me evaluate and improve it.
+  I'd revisit speech-to-speech where emotional nuance matters more than the paper trail.</div>
+
+  <h2>What each layer costs you (honest latency framing)</h2>
+  <div class="card">
+    <p>A cascaded turn is additive by nature: <code>endpointing + STT final + LLM TTFT + TTS TTFB</code>.
+    In this project each of those is measured separately (see <code>08-latency.html</code>), which is precisely the
+    advantage — I can point at which stage is slow rather than guessing at one opaque number.</p>
+    <p>The mitigations that actually matter are <strong>streaming at every boundary</strong> and never waiting for a
+    complete artifact before starting the next stage. That's why TTS begins on the first sentence rather than the
+    full response.</p>
+  </div>
+
+  <div class="note warn"><strong>If asked "what's inside GPT-4o voice / Gemini Live?"</strong> — the correct answer
+  is: publicly they're described as natively multimodal models handling audio in and out without a text bottleneck;
+  the exact encoder, tokenisation scheme, and decoder are not public, and I'm not going to invent detail I can't
+  source. What I <em>can</em> discuss is the general architecture class and the engineering tradeoffs it implies.</div>
+</div>
+</body>
+</html>

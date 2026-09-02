@@ -15,11 +15,6 @@ export default function HomePage() {
         </nav>
       </div>
 
-      <p className="disclaimer">
-        Portfolio demo using synthetic data only. This system is an automated intake assistant — it does not provide
-        legal advice, does not create an attorney-client relationship, and does not make legal conclusions.
-      </p>
-
       <CallConsole />
     </main>
   );

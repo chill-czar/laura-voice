@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Context Engineering</title>
+<style>
+:root{--bg:#0a0c11;--panel:#12151d;--panel2:#171b25;--line:#252b39;--soft:#1c212c;--text:#e8ebf2;--dim:#98a1b5;--faint:#626b80;--accent:#7c8cf5;--violet:#a78bfa;--green:#4ade80;--amber:#fbbf24;--red:#f87171;--cyan:#38bdf8;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:36px 24px 90px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:30px;letter-spacing:-.02em}
+.sub{color:var(--dim);margin:6px 0 28px}
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:36px 0 12px;font-weight:700}
+h3{font-size:15px;margin:0 0 8px}
+p{color:var(--dim);margin-bottom:10px;font-size:14px}
+code{font-family:var(--mono);font-size:.88em;color:var(--cyan)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+pre{background:#0d1017;border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;color:#cdd6e6}
+.k{color:#c792ea}.s{color:#c3e88d}.c{color:#546a90}.f{color:#82aaff}
+.hdrk{color:var(--violet);font-weight:700}
+.note{border-left:3px solid var(--accent);background:#10141d;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;color:var(--dim);font-size:14px}
+.note.warn{border-left-color:var(--amber)}
+.note strong{color:var(--text)}
+ul{margin:0 0 8px 17px;color:var(--dim);font-size:13.5px}
+li{margin-bottom:5px}
+.file{font-family:var(--mono);font-size:11px;color:var(--faint);display:block;margin-top:8px}
+.say{border:1px dashed #33406b;background:#101524;border-radius:8px;padding:12px 15px;margin:12px 0;color:#b9c5e8;font-size:13.5px}
+.say::before{content:"SAY THIS";display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--accent);margin-bottom:5px}
+.stack{display:flex;flex-direction:column;gap:7px}
+.blk{border:1px solid var(--line);border-radius:8px;padding:10px 14px;background:var(--panel2);display:flex;justify-content:space-between;align-items:center;gap:12px}
+.blk .l{font-family:var(--mono);font-size:12px;color:var(--violet);font-weight:600}
+.blk .r{font-size:12px;color:var(--faint);text-align:right}
+.blk.dyn{border-color:#3d4a86;background:#141a2c}
+.blk.pol{border-color:#2a4a3a;background:#101c17}
+.blk.pol .l{color:var(--green)}
+.excl{border:1px dashed #4a2a2a;background:#1a1114;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;gap:12px}
+.excl .l{font-family:var(--mono);font-size:12px;color:var(--red)}
+.excl .r{font-size:12px;color:var(--faint);text-align:right}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--soft);color:var(--dim);vertical-align:top}
+td:first-child{color:var(--text)}
+tr:last-child td{border:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Context Engineering</h1>
+  <p class="sub">Exactly what reaches the model on every turn — and, just as important, what doesn't.</p>
+
+  <h2>The assembled prompt, block by block</h2>
+  <div class="stack">
+    <div class="blk"><span class="l">roleInstructions</span><span class="r">per-agent — differs for Triage / Intake / Qualification / Scheduling</span></div>
+    <div class="blk dyn"><span class="l">CURRENT PHASE</span><span class="r">from <code>state.currentPhase</code> — the model always knows where it is</span></div>
+    <div class="blk dyn"><span class="l">KNOWN CALLER</span><span class="r">name / phone / email, or "unknown (not yet collected)"</span></div>
+    <div class="blk dyn"><span class="l">KNOWN MATTER FIELDS</span><span class="r">only fields actually collected — empty ones are omitted entirely</span></div>
+    <div class="blk dyn"><span class="l">REQUIRED MISSING FIELDS</span><span class="r">derived getter — this is what drives the next question</span></div>
+    <div class="blk pol"><span class="l">RELEVANT POLICY</span><span class="r">topic-selected docs only, not the whole knowledge base</span></div>
+    <div class="blk"><span class="l">RECENT CONVERSATION</span><span class="r">optional bounded excerpt — caller passes it in explicitly</span></div>
+    <div class="blk"><span class="l">GLOBAL RULES</span><span class="r">7 hard constraints — no legal advice, no invented facts, one question at a time</span></div>
+  </div>
+  <span class="file">apps/agent/src/orchestrator/ContextService.ts → buildInstructions()</span>
+
+  <h2>What I deliberately leave out</h2>
+  <div class="stack">
+    <div class="excl"><span class="l">✗ full transcript</span><span class="r">grows unbounded; LiveKit already maintains the chat context window</span></div>
+    <div class="excl"><span class="l">✗ whole database</span><span class="r">irrelevant callers/matters are noise that invites cross-contamination</span></div>
+    <div class="excl"><span class="l">✗ all policy documents</span><span class="r">Scheduling doesn't need escalation rules; Triage doesn't need appointment rules</span></div>
+    <div class="excl"><span class="l">✗ empty/null fields</span><span class="r">"incidentDate: null" teaches the model nothing but costs tokens</span></div>
+    <div class="excl"><span class="l">✗ raw tool JSON dumps</span><span class="r">tool results return typed summaries, not entire rows</span></div>
+    <div class="excl"><span class="l">✗ every tool</span><span class="r">each agent only sees the tools its role permits — capability scoping</span></div>
+  </div>
+
+  <div class="say">Context engineering isn't "write a good prompt". It's deciding, per turn, what subset of the
+  world the model is allowed to see — and being able to reconstruct exactly that later when something goes wrong.
+  One class owns that decision, so there's one place to audit.</div>
+
+  <h2>The code</h2>
+  <div class="card">
+    <pre><span class="f">buildInstructions</span>(params) {
+  <span class="k">const</span> sections = [
+    roleInstructions.trim(),
+    <span class="s">`CURRENT PHASE\n${state.currentPhase}`</span>,
+    <span class="s">`KNOWN CALLER\n${formatCaller(state)}`</span>,
+    <span class="s">`KNOWN MATTER FIELDS\n${formatFields(state)}`</span>,
+    <span class="s">`REQUIRED MISSING FIELDS\n${state.missingRequiredFields.join(", ") || "none"}`</span>,
+  ];
+  <span class="k">if</span> (policyTopics.length &gt; <span class="c">0</span>)
+    sections.push(<span class="s">`RELEVANT POLICY\n${this.policyService.getDocs(policyTopics)}`</span>);
+  <span class="k">if</span> (recentTurnsExcerpt)
+    sections.push(<span class="s">`RECENT CONVERSATION\n${recentTurnsExcerpt}`</span>);
+  sections.push(GLOBAL_RULES);
+  <span class="k">return</span> sections.join(<span class="s">"\n\n"</span>);
+}
+
+<span class="c">// Empty values never reach the model at all:</span>
+<span class="k">function</span> <span class="f">formatFields</span>(state) {
+  <span class="k">const</span> entries = Object.entries(state.collectedFields)
+    .filter(([, v]) =&gt; v !== <span class="k">undefined</span> &amp;&amp; v !== <span class="k">null</span> &amp;&amp; !(Array.isArray(v) &amp;&amp; !v.length));
+  <span class="k">if</span> (!entries.length) <span class="k">return</span> <span class="s">"none collected yet"</span>;
+  ...
+}</pre>
+  </div>
+
+  <h2>Policy retrieval — topic selection, not similarity search</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>How it works</h3>
+      <p>Six documents load once at boot (4 markdown + 2 JSON). Each agent declares which topics it needs:</p>
+      <pre style="font-size:12px">Triage        → ["communication", "escalation"]
+Intake        → ["intake", "communication"]
+Qualification → ["communication"]
+Scheduling    → ["appointment", "communication"]</pre>
+      <span class="file">services/PolicyService.ts</span>
+    </div>
+    <div class="card">
+      <h3>Why no vector DB</h3>
+      <ul>
+        <li>The corpus is six documents. Every query is an exact lookup by topic.</li>
+        <li>Embeddings would add an index, a similarity threshold, and a whole new failure mode — to solve retrieval I don't have.</li>
+        <li>Caller/matter retrieval is a <strong>primary-key lookup</strong>, not semantic search.</li>
+      </ul>
+      <div class="note warn" style="margin-bottom:0;font-size:13px">The honest version: "I'd add embeddings when the
+      knowledge base is big enough that topic routing stops working — not before."</div>
+    </div>
+  </div>
+
+  <h2>Two kinds of retrieval in this system</h2>
+  <table>
+    <tr><th></th><th>Structured retrieval</th><th>Knowledge retrieval</th></tr>
+    <tr><td>Question</td><td>"Who is this caller, and what do we already have?"</td><td>"What are the firm's rules here?"</td></tr>
+    <tr><td>Mechanism</td><td><code>get_caller(phone)</code> → returns caller + most recent open matter → <code>get_matter(id)</code></td><td><code>PolicyService.getDocs(topics)</code></td></tr>
+    <tr><td>Backed by</td><td>Postgres, unique index on phone</td><td>Local markdown/JSON, loaded at boot</td></tr>
+    <tr><td>Enters context via</td><td>Tool result → merged into <code>CallState.collectedFields</code> → next prompt's KNOWN MATTER block</td><td><code>RELEVANT POLICY</code> block</td></tr>
+    <tr><td>Failure mode</td><td>Caller not found → agent collects from scratch</td><td>Missing doc → empty string, agent falls back to global rules</td></tr>
+  </table>
+
+  <h2>The feedback loop that makes this "engineering" not "prompting"</h2>
+  <div class="card">
+    <pre>caller speaks
+   → structured extraction (strict JSON schema + zod re-validation)
+   → CallState.mergeIntakeFields()          <span class="c">// in-memory truth</span>
+   → CaseService.updateIntake()             <span class="c">// durable truth</span>
+   → missingRequiredFields recomputed       <span class="c">// derived getter</span>
+   → NEXT TURN'S CONTEXT IS DIFFERENT       <span class="c">// ← the loop</span>
+   → agent asks about something it still needs</pre>
+    <p style="margin-top:10px">The prompt is never static. Each turn it reflects everything known so far — which is
+    why the agent stops asking about injuries once injuries are recorded, without any explicit "don't repeat
+    yourself" instruction.</p>
+  </div>
+  <div class="note"><strong>Token/latency argument, if pushed:</strong> every block I exclude is tokens I don't pay
+  for and time the model doesn't spend reading. On a voice call the user is <em>listening to silence</em> while the
+  model reads context — so prompt size is a latency decision, not just a cost one.</div>
+</div>
+</body>
+</html>

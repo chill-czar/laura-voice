@@ -1,0 +1,86 @@
+/* Shared dark technical aesthetic for the video deep-dive pages.
+   Each page inlines this (they must be standalone), but this file is the
+   canonical copy if you want to restyle everything at once. */
+:root {
+  --bg: #0a0c11;
+  --panel: #12151d;
+  --panel-2: #171b25;
+  --line: #252b39;
+  --line-soft: #1c212c;
+  --text: #e8ebf2;
+  --dim: #98a1b5;
+  --faint: #626b80;
+  --accent: #7c8cf5;
+  --accent-2: #a78bfa;
+  --green: #4ade80;
+  --amber: #fbbf24;
+  --red: #f87171;
+  --cyan: #38bdf8;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  padding: 40px 28px 100px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; }
+h1 { font-size: 30px; letter-spacing: -0.02em; margin-bottom: 8px; }
+.sub { color: var(--dim); font-size: 15px; margin-bottom: 32px; }
+h2 {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.09em;
+  color: var(--accent); margin: 40px 0 14px; font-weight: 700;
+}
+h3 { font-size: 16px; margin: 22px 0 8px; }
+p { color: var(--dim); margin-bottom: 12px; }
+code { font-family: var(--mono); font-size: 0.9em; color: var(--cyan); }
+.card {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 12px; padding: 20px 22px; margin-bottom: 16px;
+}
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 900px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+.tag {
+  display: inline-block; font-family: var(--mono); font-size: 11px;
+  padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line);
+  color: var(--dim); margin-right: 6px;
+}
+.tag.impl { border-color: #2a3f6d; color: #9db4ff; background: #131b30; }
+.tag.concept { border-color: #3d3357; color: #c4b0f5; background: #191527; }
+.tag.warn { border-color: #4a3a1a; color: var(--amber); background: #241d0f; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th {
+  text-align: left; font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--faint); padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+}
+td { padding: 9px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+pre {
+  background: #0d1017; border: 1px solid var(--line); border-radius: 8px;
+  padding: 14px 16px; overflow-x: auto; font-family: var(--mono);
+  font-size: 12.5px; line-height: 1.55; color: #cdd6e6;
+}
+.note {
+  border-left: 3px solid var(--accent); background: #10141d;
+  padding: 12px 16px; border-radius: 0 8px 8px 0; margin: 14px 0;
+  color: var(--dim); font-size: 14px;
+}
+.note.warn { border-left-color: var(--amber); }
+.note.bad { border-left-color: var(--red); }
+.note strong { color: var(--text); }
+ul { margin: 0 0 12px 18px; color: var(--dim); }
+li { margin-bottom: 6px; }
+.say {
+  border: 1px dashed #33406b; background: #101524; border-radius: 8px;
+  padding: 12px 16px; margin: 14px 0; color: #b9c5e8; font-size: 14px;
+}
+.say::before {
+  content: "SAY THIS"; display: block; font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.1em; color: var(--accent); margin-bottom: 6px;
+}
+.file {
+  font-family: var(--mono); font-size: 11.5px; color: var(--faint);
+  display: block; margin-top: 6px;
+}

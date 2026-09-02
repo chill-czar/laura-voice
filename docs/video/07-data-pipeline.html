@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Pipeline</title>
+<style>
+:root{--bg:#0a0c11;--panel:#12151d;--panel2:#171b25;--line:#252b39;--soft:#1c212c;--text:#e8ebf2;--dim:#98a1b5;--faint:#626b80;--accent:#7c8cf5;--violet:#a78bfa;--green:#4ade80;--amber:#fbbf24;--red:#f87171;--cyan:#38bdf8;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:36px 24px 90px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:30px;letter-spacing:-.02em}
+.sub{color:var(--dim);margin:6px 0 28px}
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:36px 0 12px;font-weight:700}
+h3{font-size:15px;margin:0 0 8px}
+p{color:var(--dim);margin-bottom:10px;font-size:14px}
+code{font-family:var(--mono);font-size:.88em;color:var(--cyan)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+pre{background:#0d1017;border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;color:#cdd6e6}
+.c{color:#546a90}.s{color:#c3e88d}.k{color:#c792ea}
+.note{border-left:3px solid var(--accent);background:#10141d;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;color:var(--dim);font-size:14px}
+.note strong{color:var(--text)}
+ul{margin:0 0 8px 17px;color:var(--dim);font-size:13.5px}
+li{margin-bottom:5px}
+.file{font-family:var(--mono);font-size:11px;color:var(--faint);display:block;margin-top:8px}
+.say{border:1px dashed #33406b;background:#101524;border-radius:8px;padding:12px 15px;margin:12px 0;color:#b9c5e8;font-size:13.5px}
+.say::before{content:"SAY THIS";display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--accent);margin-bottom:5px}
+.steps{display:flex;flex-direction:column;gap:0}
+.step{display:grid;grid-template-columns:38px 1fr;gap:14px;align-items:start}
+.step .num{font-family:var(--mono);font-size:11px;color:var(--accent);border:1px solid #2c3552;border-radius:7px;padding:5px 0;text-align:center;background:#0e1320}
+.step .body{border-left:1px dashed var(--line);padding:0 0 18px 16px;margin-left:-8px}
+.step:last-child .body{border-left-color:transparent}
+.step h4{font-size:13.5px;margin-bottom:3px}
+.step p{font-size:13px;margin-bottom:5px}
+.mini{font-family:var(--mono);font-size:11.5px;color:var(--faint);background:#0d1017;border:1px solid var(--soft);border-radius:6px;padding:6px 9px;display:inline-block}
+.erd{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--soft);color:var(--dim);vertical-align:top}
+td:first-child{color:var(--text)}
+tr:last-child td{border:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Data Pipeline</h1>
+  <p class="sub">How a sentence spoken out loud becomes a durable, queryable business record.</p>
+
+  <h2>One utterance, end to end</h2>
+  <div class="steps">
+    <div class="step"><div class="num">01</div><div class="body">
+      <h4>Caller speaks</h4>
+      <p>"I was rear-ended on the 26th of May in Mumbai, hurt my leg."</p>
+      <span class="mini">audio frames → Deepgram nova-3</span>
+    </div></div>
+    <div class="step"><div class="num">02</div><div class="body">
+      <h4>STT emits finals — usually several</h4>
+      <p>Streaming STT fragments one thought into multiple finals. This is why extraction uses a rolling window of the last 6 turns rather than one utterance.</p>
+      <span class="mini">user.transcript.final ×N</span>
+    </div></div>
+    <div class="step"><div class="num">03</div><div class="body">
+      <h4>Transcript persisted immediately</h4>
+      <p><code>CallOrchestrator.recordUserTurn()</code> writes a <code>TranscriptTurn</code> row before anything else happens.</p>
+      <span class="mini">Postgres: TranscriptTurn(speaker=CALLER, text)</span>
+    </div></div>
+    <div class="step"><div class="num">04</div><div class="body">
+      <h4>Structured extraction — background, non-blocking</h4>
+      <p>A second LLM call with a strict JSON schema pulls typed facts out of the free text. It runs detached so it never delays the spoken reply.</p>
+      <pre style="margin-top:6px">{ "incidentType": "motor_vehicle_accident",
+  "incidentDate": "2026-05-26",
+  "incidentLocation": "Mumbai",
+  "injuries": ["leg"] }</pre>
+    </div></div>
+    <div class="step"><div class="num">05</div><div class="body">
+      <h4>Validated before it is trusted</h4>
+      <p>The model's JSON is re-parsed through <code>intakeFieldsSchema.safeParse()</code>. Invalid output throws and becomes an <code>error</code> event — it never reaches the database.</p>
+      <span class="mini">zod validation boundary</span>
+    </div></div>
+    <div class="step"><div class="num">06</div><div class="body">
+      <h4>Merged into live state</h4>
+      <p><code>CallState.mergeIntakeFields()</code> — nulls and empty arrays are skipped, so a later turn can add facts but a blank extraction can't erase them.</p>
+      <span class="mini">returns updatedKeys[]</span>
+    </div></div>
+    <div class="step"><div class="num">07</div><div class="body">
+      <h4>Persisted through a typed service</h4>
+      <p><code>CaseService.updateIntake()</code> is the only writer. Field names match <code>IntakeFields</code> 1:1 — no translation layer to drift.</p>
+      <span class="mini">Postgres: Matter row updated</span>
+    </div></div>
+    <div class="step"><div class="num">08</div><div class="body">
+      <h4>Event emitted to three places</h4>
+      <p><code>intake.fields_extracted</code> → Postgres CallEvent + Redis stream + Redis pub/sub + console.</p>
+      <span class="mini">EventService.emit()</span>
+    </div></div>
+    <div class="step"><div class="num">09</div><div class="body">
+      <h4>Frontend updates live</h4>
+      <p>Redis pub/sub → API SSE → React. The Case Details panel fills in mid-sentence, with no polling.</p>
+      <span class="mini">useCallEventStream → deriveCallState</span>
+    </div></div>
+    <div class="step"><div class="num">10</div><div class="body">
+      <h4>Next turn's context is different</h4>
+      <p><code>missingRequiredFields</code> shrinks, so the assembled prompt changes and the agent asks about something else.</p>
+      <span class="mini">the loop closes</span>
+    </div></div>
+  </div>
+
+  <div class="say">Notice what never happens: the model never writes to the database. It produces a proposal, the
+  proposal is validated, and a typed service performs the write. If the model hallucinates a field, validation
+  rejects it — and I get an error event rather than silent corruption.</div>
+
+  <h2>Schema — every call is fully reconstructable</h2>
+  <div class="erd">
+    <pre>  Caller ──1:N── Matter ──1:N── Appointment
+  (phone @unique)  │              (idempotencyKey @unique)
+        │          │
+        └──1:N── Call ──┬──1:N── TranscriptTurn   (speaker, text, timestamp)
+       (roomName @unique)└──1:N── CallEvent        (type, agent, phase, metadata, durationMs)</pre>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="card">
+      <h3>Matter — 13 structured intake fields</h3>
+      <p style="font-family:var(--mono);font-size:12px;line-height:1.9">incidentType · incidentDate · incidentLocation ·
+      incidentDescription · injuries[] · treatmentReceived · emergencyServicesInvolved · policeReport ·
+      insuranceInformation · otherPartyInformation · witnesses · lostWages · representedByAttorney</p>
+      <p>Plus <code>status</code>, <code>qualificationStatus</code>, <code>notes</code>.</p>
+    </div>
+    <div class="card">
+      <h3>Why CallEvent is its own table</h3>
+      <ul>
+        <li>The call can be replayed from events alone — the frontend literally does this via <code>deriveCallState()</code></li>
+        <li><code>durationMs</code> on the row makes latency queryable in SQL</li>
+        <li>Indexed on <code>callId</code> and <code>type</code> — "show me every <code>tool.failed</code> this week" is one query</li>
+        <li>It's the audit trail a law firm's compliance person would actually want</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Source of truth — the rule I keep</h2>
+  <table>
+    <tr><th>Store</th><th>Holds</th><th>Survives restart?</th><th>Losing it means</th></tr>
+    <tr><td>PostgreSQL</td><td>Caller, Matter, Appointment, Call, Transcript, Events</td><td style="color:#4ade80">Yes</td><td>Actual data loss — this is the product</td></tr>
+    <tr><td>Redis</td><td>Event stream + per-call pub/sub channel</td><td style="color:#fbbf24">Not required to</td><td>Live UI goes quiet; business state intact</td></tr>
+    <tr><td><code>CallState</code> (memory)</td><td>Current phase, collected fields, turn state</td><td style="color:#f87171">No</td><td>In-flight call degrades; everything already persisted survives</td></tr>
+  </table>
+  <div class="note"><strong>Why persist per-turn instead of at call end?</strong> Because calls drop. If I only wrote
+  on <code>call.ended</code>, a caller hanging up mid-intake would lose everything they just told us. Writing as
+  facts arrive means a dropped call still leaves a partially-complete matter a human can pick up.</div>
+
+  <h2>The claim I will not make</h2>
+  <div class="card">
+    <p><strong>"AI output is the source of truth."</strong> It isn't, anywhere in this system. The LLM's free-text
+    reply is <em>conversation</em>. The structured extraction is a <em>proposal</em>. Only after zod validation and a
+    typed service call does anything become business state. Every write is attributable to a specific tool call,
+    logged with its input, output and duration.</p>
+    <p>That distinction is what makes this deployable at a law firm rather than a chatbot demo.</p>
+  </div>
+</div>
+</body>
+</html>

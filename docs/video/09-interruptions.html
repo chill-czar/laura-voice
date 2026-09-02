@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interruptions</title>
+<style>
+:root{--bg:#0a0c11;--panel:#12151d;--panel2:#171b25;--line:#252b39;--soft:#1c212c;--text:#e8ebf2;--dim:#98a1b5;--faint:#626b80;--accent:#7c8cf5;--violet:#a78bfa;--green:#4ade80;--amber:#fbbf24;--red:#f87171;--cyan:#38bdf8;--mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:36px 24px 90px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:30px;letter-spacing:-.02em}
+.sub{color:var(--dim);margin:6px 0 28px}
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--accent);margin:36px 0 12px;font-weight:700}
+h3{font-size:15px;margin:0 0 8px}
+p{color:var(--dim);margin-bottom:10px;font-size:14px}
+code{font-family:var(--mono);font-size:.88em;color:var(--cyan)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:14px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+pre{background:#0d1017;border:1px solid var(--line);border-radius:8px;padding:14px 16px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;color:#cdd6e6}
+.c{color:#546a90}.s{color:#c3e88d}.k{color:#c792ea}.f{color:#82aaff}
+.note{border-left:3px solid var(--accent);background:#10141d;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;color:var(--dim);font-size:14px}
+.note.warn{border-left-color:var(--amber)}
+.note.bad{border-left-color:var(--red)}
+.note strong{color:var(--text)}
+ul{margin:0 0 8px 17px;color:var(--dim);font-size:13.5px}
+li{margin-bottom:5px}
+.file{font-family:var(--mono);font-size:11px;color:var(--faint);display:block;margin-top:8px}
+.say{border:1px dashed #33406b;background:#101524;border-radius:8px;padding:12px 15px;margin:12px 0;color:#b9c5e8;font-size:13.5px}
+.say::before{content:"SAY THIS";display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--accent);margin-bottom:5px}
+.states{display:flex;gap:9px;flex-wrap:wrap;margin:6px 0 4px}
+.stt{font-family:var(--mono);font-size:11.5px;padding:7px 13px;border-radius:7px;border:1px solid var(--line);background:var(--panel2)}
+.stt.hi{border-color:#5a3a3a;background:#241417;color:var(--red)}
+.seq{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px}
+.evt{display:grid;grid-template-columns:78px 1fr;gap:14px;padding:7px 0;border-bottom:1px solid var(--soft);align-items:baseline}
+.evt:last-child{border:0}
+.evt .t{font-family:var(--mono);font-size:11px;color:var(--faint)}
+.evt .d{font-size:13px}
+.evt .d b{font-family:var(--mono);font-size:12px;color:var(--violet);font-weight:600}
+.evt.alert .d b{color:var(--red)}
+.evt.ok .d b{color:var(--green)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--soft);color:var(--dim);vertical-align:top}
+td:first-child{color:var(--text)}
+tr:last-child td{border:0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Interruptions &amp; Barge-in</h1>
+  <p class="sub">The behaviour that separates "a voice interface" from "a phone call that feels human".</p>
+
+  <h2>Why <code>interruption = true</code> is the wrong model</h2>
+  <div class="card">
+    <p>A boolean tells you an interruption <em>happened</em>. It doesn't tell you what to do about the four things
+    already in flight: streamed tokens, queued TTS audio, audio already played into the caller's ear, and any tool
+    call mid-execution. Those need different handling, so the system needs a <strong>turn state</strong>, not a flag.</p>
+    <div class="states">
+      <span class="stt">LISTENING</span>
+      <span class="stt">THINKING</span>
+      <span class="stt">SPEAKING</span>
+      <span class="stt hi">INTERRUPTED</span>
+      <span class="stt">TOOL_EXECUTING</span>
+      <span class="stt">ENDED</span>
+    </div>
+    <span class="file">packages/shared/src/phases.ts → TurnState — deliberately separate from the business CallPhase</span>
+    <div class="note" style="margin-bottom:0"><strong>Two independent state machines.</strong> Being interrupted
+    doesn't change what phase of intake you're in. Conflating "the caller is talking over me" with "we are in the
+    qualification stage" would be a modelling error — so <code>TurnState</code> and <code>CallPhase</code> are
+    separate types that evolve independently.</div>
+  </div>
+
+  <h2>What actually happens, in order</h2>
+  <div class="seq">
+    <div class="evt"><span class="t">t+0.0s</span><span class="d">Agent begins speaking → <b>tts.started</b>, then <b>first_audio</b></span></div>
+    <div class="evt"><span class="t">t+0.4s</span><span class="d">Audio frames are already flowing into the LiveKit room — <em>this audio cannot be recalled</em></span></div>
+    <div class="evt alert"><span class="t">t+1.2s</span><span class="d">Caller starts talking. VAD fires while <code>session.agentState === "speaking"</code> → <b>interruption.detected</b></span></div>
+    <div class="evt alert"><span class="t">t+1.2s</span><span class="d">Turn state → <code>INTERRUPTED</code>, <code>interruptionCount++</code></span></div>
+    <div class="evt"><span class="t">t+1.2s</span><span class="d">LiveKit cancels the in-flight generation: token stream aborted, queued TTS discarded</span></div>
+    <div class="evt"><span class="t">t+1.3s</span><span class="d">Truncated assistant message is committed to chat context — so the model knows it was cut off mid-sentence</span></div>
+    <div class="evt"><span class="t">t+1.9s</span><span class="d">New user turn transcribed → <b>user.transcript.final</b></span></div>
+    <div class="evt ok"><span class="t">t+2.6s</span><span class="d">Fresh generation against updated context → <b>llm.started</b> → new reply</span></div>
+    <div class="evt"><span class="t">—</span><span class="d">If the "interruption" turned out to be noise, LiveKit emits a false-interruption event → logged as <b>speech.cancelled</b></span></div>
+  </div>
+
+  <h2>What happens to each in-flight thing</h2>
+  <table>
+    <tr><th>In flight</th><th>On interruption</th><th>Why</th></tr>
+    <tr><td>LLM tokens still streaming</td><td>Generation aborted</td><td>The response was answering a question the caller has now changed</td></tr>
+    <tr><td>TTS audio queued but not sent</td><td>Discarded</td><td>Cheapest thing to cancel; biggest perceived win</td></tr>
+    <tr><td>Audio already played</td><td><strong>Cannot be undone</strong></td><td>It's in the caller's ear. This is why the truncated text is committed to context — the model must know what the caller actually heard</td></tr>
+    <tr><td>Conversation state</td><td>Truncated message recorded</td><td>Prevents the agent repeating the full sentence as if nothing happened</td></tr>
+    <tr><td>Tool call mid-execution</td><td><strong>Runs to completion</strong></td><td>Deliberate: a half-executed DB write is worse than a wasted one. Idempotency keys make a retry safe</td></tr>
+    <tr><td>Business phase</td><td>Unchanged</td><td>Interruption is a turn-level event, not a business event</td></tr>
+  </table>
+  <div class="note"><strong>That tool-call row is the interesting one.</strong> Cancelling a
+  <code>schedule_follow_up</code> halfway through could leave an appointment row without the caller ever hearing
+  confirmation. I'd rather complete the write and let the idempotency key
+  (<code>callId + appointmentRequestId</code>) make a re-attempt harmless.</div>
+
+  <h2>The code</h2>
+  <div class="card">
+    <pre>session.on(AgentSessionEventTypes.UserStateChanged, (ev) =&gt; {
+  <span class="c">// Barge-in heuristic: the user started talking *while the agent was speaking*.</span>
+  <span class="c">// That's an interruption, not just the next turn.</span>
+  <span class="k">if</span> (ev.newState === <span class="s">"speaking"</span> &amp;&amp; session.agentState === <span class="s">"speaking"</span>) {
+    orchestrator.state.turnState = TurnState.INTERRUPTED;
+    orchestrator.state.interruptionCount += <span class="c">1</span>;
+    <span class="k">void</span> orchestrator.eventService.emit(INTERRUPTION_DETECTED, {
+      agent: orchestrator.state.activeAgent,
+      phase: orchestrator.state.currentPhase,
+      metadata: { interruptionCount: orchestrator.state.interruptionCount },
+    });
+  }
+});</pre>
+    <span class="file">apps/agent/src/entry.ts</span>
+  </div>
+
+  <h2>Tuning — and a real bug I hit</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>The failure</h3>
+      <p>Replies appeared in the transcript but produced no audio — roughly one second after the agent started
+      speaking, every time.</p>
+      <p>The log showed the shape of it immediately:</p>
+      <pre style="font-size:11.5px">04:10:41  first_audio            (320ms)
+04:10:42  user.transcript.partial "So yeah."</pre>
+      <p>The agent was <strong>interrupting itself</strong>: its own voice came out the speakers, the mic picked it
+      up, VAD scored it as the caller talking, and the system cancelled its own speech.</p>
+    </div>
+    <div class="card">
+      <h3>The fix — both ends</h3>
+      <ul>
+        <li><strong>Browser:</strong> explicit <code>echoCancellation</code>, <code>noiseSuppression</code>,
+        <code>autoGainControl</code> on capture instead of a bare <code>audio</code> boolean.</li>
+        <li><strong>Agent:</strong> <code>turnHandling.interruption.minWords = 2</code>. The default is <strong>0</strong>
+        — meaning any ~500ms of speech-like audio cancels the agent. A cough, a chair creak, or its own echo.</li>
+      </ul>
+      <p>Real barge-in still works — "Wait, Friday instead" is well over two words — but noise no longer kills a
+      sentence.</p>
+    </div>
+  </div>
+  <div class="say">This is a good story to tell because it shows the observability paying for itself. I didn't guess;
+  the event timeline showed <code>first_audio</code> followed one second later by a user transcript, every single
+  time. That pattern <em>is</em> the diagnosis. Without per-event timestamps I'd have been randomly changing settings.</div>
+
+  <h2>Honest limitations</h2>
+  <div class="note warn">
+    <ul style="margin-bottom:0">
+      <li>Detection is <strong>VAD + word-count</strong>, not semantic. A genuine backchannel ("mm-hmm", "right") of
+      two or more words will still interrupt. Semantic turn detection would fix this properly.</li>
+      <li>LiveKit's <code>resumeFalseInterruption</code> requires an audio output that supports pause; if it isn't
+      supported on this path it's silently ignored, so a false interruption ends the utterance rather than resuming it.</li>
+      <li>There is no automated test for interruption behaviour. It's verified by hand, on camera. That's honest, but
+      it's not a regression guard.</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>
