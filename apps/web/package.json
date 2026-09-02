@@ -4,14 +4,17 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3000",
-    "build": "next build",
+    "dev": "dotenv -e ../../.env -- next dev --port 3000",
+    "build": "dotenv -e ../../.env -- next build",
     "start": "next start",
     "lint": "eslint --max-warnings 0",
     "check-types": "next typegen && tsc --noEmit"
   },
   "dependencies": {
-    "@repo/ui": "*",
+    "@livekit/components-react": "^2.9.24",
+    "@livekit/components-styles": "^1.2.0",
+    "@repo/shared": "*",
+    "livekit-client": "^2.21.0",
     "next": "16.3.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
@@ -22,6 +25,7 @@
     "@types/node": "^22.15.3",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
+    "dotenv-cli": "^11.0.0",
     "eslint": "^9.39.1",
     "typescript": "5.9.2"
   }
