@@ -1,167 +1,139 @@
-# Laura Voice Intake Orchestrator (V1)
+# Laura Voice
 
-> **Portfolio demo, not a product.** Synthetic data only. This system does not provide legal advice, does not
-> create an attorney-client relationship, and never makes legal conclusions. See [`CLAUDE.md`](./CLAUDE.md) for
-> the full spec this implements.
+Real-time conversational voice AI intake agent with deterministic qualification and live telemetry.
 
-A small but genuinely working end-to-end voice-AI intake system for a plaintiff law firm: a caller talks to a
-browser-based voice agent, the agent conducts a structured intake conversation, and everything — transcript,
-extracted case facts, tool calls, agent handoffs, and orchestration events — is persisted and visible live in the
-frontend and in the terminal as it happens.
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
+[![LiveKit](https://img.shields.io/badge/LiveKit-WebRTC-orange.svg)](https://livekit.io/)
+[![Deepgram](https://img.shields.io/badge/Deepgram-Nova--3_%26_Aura-13EF93.svg)](https://deepgram.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
+
+## Overview
+
+High-intent customer intake—such as legal claim qualification—demands conversational fluidity without sacrificing deterministic business rules. Laura Voice is an end-to-end voice AI system where callers interact in real time via browser WebRTC. It pairs a low-latency speech pipeline with a strict state machine that separates conversational reasoning from deterministic qualification logic, streaming live telemetry to an operator console.
+
+<!-- TODO: add 60-second voice interaction demo video / GIF here -->
+
+## Key Features
+
+- **Cascaded Speech Pipeline:** LiveKit Cloud WebRTC media transport integrating Deepgram Nova-3 streaming STT, OpenRouter LLM inference, and Deepgram Aura streaming TTS.
+- **Barge-in with False-Interruption Filtering:** Prewarmed local Silero ONNX VAD configured with a 2-word transcription threshold to instantly cancel agent speech on user interruption while ignoring coughs and background noise.
+- **Deterministic 9-Phase State Machine:** Explicit transitions orchestrating 4 specialized agents (Triage, Intake, Qualification, Scheduling), validating all handoff edges in code.
+- **Code-Enforced Qualification:** Pure TypeScript business logic evaluating claim viability; the LLM gathers facts but never decides qualification status.
+- **Decoupled Asynchronous Fact Extraction:** Extracts structured JSON facts into validated Zod schemas in the background without delaying spoken turns.
+- **Idempotent Appointment Scheduling:** Consultation booking keyed by compound call and request identifiers to eliminate double-booking on retry.
+- **Sub-Turn Latency Observability:** Real-time collection of TTFT, TTFB, and end-of-utterance delay metrics persisted to PostgreSQL.
+- **Live Operator Console:** Next.js web dashboard streaming transcripts, extracted case facts, and latency timelines via Server-Sent Events (SSE).
 
 ## Architecture
 
-```
-Browser mic
-    │  WebRTC
-    ▼
-LiveKit (Cloud)  ───────────────────────────────────────────────┐
-    │  media/session transport                                  │ room events
-    ▼                                                            ▼
-apps/agent (LiveKit Agents worker)                          apps/api (Express)
-    │  Silero VAD → Deepgram STT → OpenRouter LLM → Deepgram TTS
-    │  CallOrchestrator (state machine) ─┬─ TriageAgent
-    │                                    ├─ IntakeAgent      (structured extraction via OpenRouterService)
-    │                                    ├─ QualificationAgent (deterministic rules, not LLM-decided)
-    │                                    └─ SchedulingAgent
-    │  ToolRegistry → CaseService / AppointmentService / CallLogService
-    │  EventService ─────────────┬──────────────────────────────►  Postgres (CallEvent, durable)
-    │                            └──────────────────────────────►  Redis `call-events` stream/pub-sub
-    ▼                                                                        │
-Postgres (Caller, Matter, Appointment, Call, TranscriptTurn)                 │ SSE
-                                                                              ▼
-                                                                   apps/web (Next.js) — live console + call history
-```
+Laura Voice runs an event-driven worker connected to LiveKit Cloud. Incoming audio frames are processed by Silero VAD and Deepgram STT. Spoken turns feed the active agent inside `CallOrchestrator`. When facts are collected, background tasks extract structured entities while the conversational turn completes. All events and latency timestamps publish to Redis Pub/Sub, which an Express API forwards to the Next.js web client via Server-Sent Events.
 
-**One-sentence architecture summary:** LiveKit handles realtime media and the voice pipeline; `CallOrchestrator`
-owns the business state machine; agents are specialized reasoning policies; tools are the only way the model
-mutates business state; Postgres is the durable source of truth; Redis carries ephemeral events; OpenRouter
-provides model routing; the frontend is a thin observability/demo layer.
+```mermaid
+flowchart TD
+    Caller["Caller Mic (WebRTC)"]
+    LK["LiveKit Cloud"]
+    Worker["LiveKit Agent Worker (Bun)"]
+    VAD["Silero ONNX VAD"]
+    STT["Deepgram Nova-3 (STT)"]
+    LLM["OpenRouter (LLM)"]
+    TTS["Deepgram Aura (TTS)"]
+    Orch["CallOrchestrator (State Machine)"]
+    PG[("PostgreSQL 16 (Prisma)")]
+    Redis[("Redis Pub/Sub")]
+    API["Express API (:4000)"]
+    Web["Next.js Web Console (:3000)"]
 
-## Monorepo layout
-
-```
-apps/
-  web/    Next.js — call console + call history/detail (live via SSE)
-  api/    Express — LiveKit token minting, read models, SSE event stream
-  agent/  LiveKit Agents worker — orchestrator, agents, tools, voice pipeline
-packages/
-  db/     Prisma schema + client + seed
-  shared/ zod schemas, event/phase enums, tool contracts, shared console logger
+    Caller <-->|Audio Stream| LK
+    LK <-->|Media Frames| Worker
+    Worker --> VAD
+    VAD --> STT
+    STT --> Orch
+    Orch <--> LLM
+    Orch --> TTS
+    TTS --> Worker
+    Orch -->|Persist Turns & Events| PG
+    Orch -->|Publish call-events| Redis
+    Redis -->|Subscribe| API
+    API -->|SSE Event Stream| Web
 ```
 
-## What's real here (and what's intentionally deferred)
+### Key Design Decisions
+- **The LLM Proposes, Code Decides:** Agents invoke tools to suggest handoffs, but `CallOrchestrator` validates every edge against `PHASE_TRANSITIONS`, preventing non-deterministic workflow jumps.
+- **Prewarmed Local VAD:** Silero ONNX loads once on worker startup rather than per call, eliminating cold-start speech detection latency.
+- **Audio Teardown Grace Period:** Call termination waits up to 15 seconds for the agent's spoken goodbye to complete playing before closing the WebRTC room.
+- **Server-Sent Events over Polling:** Real-time operator dashboard updates instantaneously off Redis pub/sub without database polling.
 
-Built and working: the full orchestrator/agent/tool/service class set from `CLAUDE.md` §7, the cascaded voice
-pipeline, multi-agent handoffs with a deterministic phase machine, structured extraction validated before
-persistence, Postgres + Redis persistence, interruption logging, measured (not invented) latency, and a live
-frontend fed by Server-Sent Events off the Redis event stream.
+## Tech Stack
 
-Deferred to a follow-up pass (see `CLAUDE.md` §23/§32 for the full list): the 20–30 scripted eval conversations
-and automated eval harness, a broader automated test suite, LiveKit's semantic turn-detector plugin (V1 uses
-standard VAD-based endpointing), and an architecture diagram image / recorded demo.
+| Domain | Technologies |
+| :--- | :--- |
+| **Voice & Media** | LiveKit Cloud, LiveKit Agents SDK, Silero VAD (ONNX), Deepgram Nova-3 & Aura |
+| **Agent Core** | TypeScript, Bun, OpenRouter API (Llama 3.3 70B), Zod schema validation |
+| **Backend API** | Express, Redis Pub/Sub, Prisma ORM, Server-Sent Events (SSE) |
+| **Frontend** | Next.js 15, React 19, Tailwind CSS, Lucide Icons |
+| **Data & Infra** | PostgreSQL 16 (6 Prisma models), Redis 7, Docker, Turborepo |
 
-## Prerequisites
+## Getting Started
 
-You need three free-tier accounts (Postgres/Redis run locally via Docker, no account needed):
+### Prerequisites
+- [Bun](https://bun.sh/) $\ge$ 1.3
+- [Docker](https://www.docker.com/) and Docker Compose
+- API Keys: LiveKit Cloud, Deepgram, and OpenRouter
 
-| Service | Get it at | Env vars |
-|---|---|---|
-| LiveKit Cloud | https://cloud.livekit.io (free project) | `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` |
-| OpenRouter | https://openrouter.ai/keys | `OPENROUTER_API_KEY` |
-| Deepgram | https://console.deepgram.com | `DEEPGRAM_API_KEY` |
-
-Also: [Bun](https://bun.sh) ≥ 1.3, Docker Desktop.
-
-## Run it locally
-
+### Local Setup
 ```bash
-cp .env.example .env        # fill in the three keys above
-bun install
+# 1. Clone repository
+git clone https://github.com/chill-czar/laura-voice.git
+cd laura-voice
 
+# 2. Configure environment
+cp .env.example .env
+# Edit .env and supply: LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET,
+# DEEPGRAM_API_KEY, OPENROUTER_API_KEY
+
+# 3. Start local Postgres and Redis
 docker compose up -d postgres redis
-bun run db:migrate          # applies the schema
-bun run db:seed             # synthetic demo caller/matter/appointment (Sarah Miller)
 
-bun run dev                 # web (:3000), api (:4000), agent — all with live console logs
+# 4. Install dependencies and seed demo data
+bun install
+bun run db:migrate
+bun run db:seed
+
+# 5. Start all services (web :3000, api :4000, agent worker)
+bun run dev
 ```
 
-Open http://localhost:3000, click **Start Call**, allow microphone access, and talk through the demo script in
-`CLAUDE.md` §24 (a car-accident intake). Try interrupting the agent mid-sentence — it stops and responds to the
-new input. When you're done, open **Call History** to see the persisted transcript, extracted intake fields,
-tool calls, handoffs, and measured latency for that call.
+Open `http://localhost:3000`, click **Start Call**, allow microphone access, and speak with the intake agent.
 
-**Watching it happen** (this is the point of the demo):
-- The `agent` terminal prints a structured, timestamped line for every orchestration step as it happens —
-  phase transitions, tool calls in/out, LLM/TTS timing, transcript turns, handoffs, interruptions.
-- The web console's transcript/intake/timeline panels update live via Server-Sent Events off the same event
-  stream (Redis `call-events` → `apps/api` SSE → browser), not polling.
-- `bunx prisma studio` (from `packages/db`, or `bun run db:studio` from root) lets you inspect Postgres directly
-  to confirm persistence is independent of the UI.
+## Project Structure
 
-### Optional: full Docker stack
-
-```bash
-docker compose up --build
+```
+laura-voice/
+├── apps/
+│   ├── agent/                  # LiveKit agent worker daemon, voice pipeline, state machine
+│   │   ├── src/agents/         # Specialized agents (Triage, Intake, Qualification, Scheduling)
+│   │   ├── src/orchestrator/   # CallOrchestrator, CallState, and ContextService
+│   │   └── src/services/       # CaseService, AppointmentService, EventService, OpenRouter
+│   ├── api/                    # Express server (LiveKit token minting, SSE event streaming)
+│   └── web/                    # Next.js 15 operator console and historical call visualizer
+├── packages/
+│   ├── db/                     # Prisma schema (Caller, Matter, Call, Turn, Event) and seed
+│   └── shared/                 # Zod schemas, phase state-machine graph, and shared contracts
+└── docker-compose.yml          # Local container definitions for PostgreSQL and Redis
 ```
 
-Builds and runs `web`/`api`/`agent` themselves inside Docker too (Postgres/Redis included). The `bun run dev`
-path above is faster to iterate against and keeps all three processes' logs directly visible, so it's the
-recommended day-to-day loop; the full compose stack is there for a closer-to-production smoke test.
+## Status & Roadmap
 
-## Environment variables
+**Current Status:** Working portfolio prototype. Runs locally via Docker Compose and Bun; no public production deployment.
 
-See [`.env.example`](./.env.example) for the complete, commented list. One root `.env` is shared by every app
-(`web`/`api`/`agent`/`db`) via `dotenv-cli` — never commit it (already gitignored).
+- [ ] Implement automated evaluation harness executing 20–30 scripted audio test conversations.
+- [ ] Add automated unit tests for state machine edge transitions and qualification logic.
+- [ ] Integrate LiveKit semantic turn-detector plugin to complement audio-energy VAD.
+- [ ] Deploy public multi-tenant demo on containerized cloud infrastructure.
 
-## Key design decisions / tradeoffs
+## Links & Contact
 
-- **Bun over pnpm.** `CLAUDE.md` suggests pnpm workspaces; the repo was already scaffolded with Bun
-  (`create-turbo` default). Functionally equivalent for this monorepo — kept Bun rather than fight the scaffold.
-- **Deepgram for both STT and TTS.** One API key instead of two (Deepgram Nova + Aura), still swappable —
-  `apps/agent/src/entry.ts` is the only place that constructs the STT/TTS clients.
-- **OpenRouter for the realtime LLM via LiveKit's OpenAI-compatible adapter**, pointed at
-  `https://openrouter.ai/api/v1`. Adds one network hop versus calling a provider directly; accepted for model
-  routing flexibility (swap `OPENROUTER_MODEL` without touching code).
-- **VAD-based interruption, not the semantic turn-detector plugin.** Real interruption handling (the agent's
-  speech is actually cancelled and the new turn processed), just without the extra cloud-inference model. See
-  `apps/agent/src/entry.ts`'s `UserStateChanged` handler for the detection heuristic.
-- **CallOrchestrator, not the LLM, owns phase transitions.** `packages/shared/src/phases.ts` defines the
-  allowed state-machine edges; every agent's "handoff" tool calls back into
-  `CallOrchestrator.prepareHandoff()`, which validates the edge before any handoff actually happens
-  (`CLAUDE.md` §28/§34 — the LLM proposes, code decides).
-- **Qualification is deterministic code**, not an LLM judgment call — see
-  `packages/shared/src/intake.ts#evaluateQualification`. `QualificationAgent` only explains the result.
-- **Idempotent appointment scheduling.** `AppointmentService.scheduleFollowUp` keys off
-  `callId + appointmentRequestId` (`CLAUDE.md` §27) and returns the existing appointment on a retried call
-  instead of double-booking.
-- **SSE, not polling, for the live frontend.** `EventService` (agent) publishes every event to a Redis pub/sub
-  channel; `apps/api` forwards it to the browser over Server-Sent Events — the timeline/intake panels update the
-  moment something happens, and it doubles as a visible demonstration of the Redis event stream.
-- **Docker build tradeoff:** the `Dockerfile`s copy the whole workspace and run a single `bun install` per image
-  rather than a slimmed multi-stage prod-only dependency layer — simpler and reliable for a monorepo with a
-  shared lockfile, at the cost of shipping devDependencies in the runtime image. Acceptable for a demo; would be
-  worth tightening for a real deployment.
-
-## Commands
-
-```bash
-bun run dev            # all apps, dev mode
-bun run build           # turbo build across the workspace
-bun run check-types     # turbo typecheck across the workspace
-bun run lint            # turbo lint across the workspace
-
-bun run db:migrate      # apply Prisma migrations
-bun run db:seed         # seed synthetic demo data
-bun run db:studio       # open Prisma Studio
-
-docker compose up -d postgres redis   # infra only (recommended for dev)
-docker compose up --build             # full stack in Docker
-```
-
-## Security / privacy
-
-No real PII — seed data and demo usage are synthetic only. Secrets live in a single gitignored `.env`
-(`.env.example` documents every variable) and are never logged (the shared logger redacts any field whose name
-looks like a key/secret/token). This is a portfolio demo: it does not claim HIPAA, SOC 2, attorney-client
-privilege, or production compliance.
+- **Portfolio:** [itsmesarthak.site](https://www.itsmesarthak.site/)
+- **GitHub:** [@chill-czar](https://github.com/chill-czar)
+- **LinkedIn:** [Sarthak Chaudhari](https://www.linkedin.com/in/its-sarthak-chaudhari/)
+- **Email:** [aisarthak2@gmail.com](mailto:aisarthak2@gmail.com)
